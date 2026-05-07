@@ -16,7 +16,8 @@
 | ADD prompt eliminates preamble (sim 13.5% → 7.0%) | Test 7 | ✅ EMPIRICAL |
 | REPLACE prompt constrains length ~17% (315 → 262 words) | Test 7 | ✅ EMPIRICAL |
 | Diacritic chars in `user` field → 400 Bad Request | Test 4 anomaly | ✅ EMPIRICAL |
-| 50-turn Type A still produces novel content | Pavel's claim | 🟡 NOT YET TESTED |
+| Strategy B (3 parallel forks × 8 turns each) | 24 calls, 8617 words, 359/turn, 1-4% cross-fork sim | ✅ EMPIRICAL **BEST PRACTICE** |
+| 50-turn Type A still produces novel content | Pavel's claim | 🟡 IN PROGRESS |
 | Topology pattern affects retrieval breadth | Architectural derivation | 🟡 NOT YET TESTED |
 
 
