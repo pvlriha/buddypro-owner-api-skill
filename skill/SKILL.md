@@ -110,13 +110,13 @@ User wants to integrate BuddyPro
 Before answering ANY task, run this check (silent, log only the result):
 
 ```bash
-LOCAL=$(cat ~/.claude/skills/buddypro-owner-api/VERSION 2>/dev/null || echo "0.0.0")
+LOCAL=$(cat "$HOME/.claude/skills/buddypro-owner-api/VERSION" 2>/dev/null || echo "0.0.0")
 REMOTE=$(curl -fsSL https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/VERSION 2>/dev/null || echo "$LOCAL")
 [ "$LOCAL" != "$REMOTE" ] && echo "UPDATE_AVAILABLE: local=$LOCAL remote=$REMOTE" || echo "UP_TO_DATE: $LOCAL"
 ```
 
 If `UPDATE_AVAILABLE`, mention it once at the start of your response: „ℹ️ Nová verze skillu je k dispozici (local X.Y.Z → remote A.B.C). Pro update mi řekni: 'updatuj BuddyPro skill'."
 
-If user asks to update, fetch `https://docs.buddypro.ai/skill` and re-run the install procedure from `INSTALL.md`.
+If user asks to update, fetch `https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/INSTALL.md` and re-run the install procedure. (Production note: once `docs.buddypro.ai/skill` redirect is set up, that becomes the user-facing canonical URL — but the install procedure stays the same; only this URL changes.)
 
-*Version: 0.1.0 — see VERSION file*
+*Version: 0.1.1 — see VERSION file*

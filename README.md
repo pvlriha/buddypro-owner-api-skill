@@ -49,6 +49,17 @@ buddypro-owner-api-skill/
 
 This skill never reads your API key — it only tells Claude Code to read `BUDDYPRO_API_KEY` from your environment. Keys stay on your machine.
 
+## Trust & Auditing
+
+This skill ships from a **public, auditable repo**: https://github.com/pvlriha/buddypro-owner-api-skill
+
+**Before installing, you can:**
+1. Read every file in this repo (it's all plain markdown)
+2. Verify integrity via `MANIFEST.sha256` against downloaded files
+3. Pin to a specific commit instead of `main` for reproducibility (see INSTALL.md)
+
+**For users with skill firewall hooks** (e.g., `skill_integrity_guard.py`): this skill is from a known publisher (`pvlriha`, BuddyPro author) and only contains markdown documentation + a curl-based install script. No executable code beyond the install bash block, which is visible in INSTALL.md.
+
 ## Contributing
 
 Issues and PRs welcome. This skill is maintained by [@pvlriha](https://github.com/pvlriha).
