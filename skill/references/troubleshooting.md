@@ -75,7 +75,40 @@ This is **NOT a 403 HTTP error** — it's a normal 200 response with a specific 
 
 ### 400 `invalid_request_error`
 
-Read `error.code` and `error.param`:
+**🔴 Common gotcha (empirically discovered 2026-05-07):**
+
+`user` field validation REJECTS diacritics (á, é, í, ó, ú, ě, š, č, ř, ž) and other non-ASCII characters. Czech app developers using Czech topic names as `user` IDs get **400 every time**.
+
+**Symptom:** Bad Request 400 on every call to a specific `user` value, while other ASCII users work fine.
+
+**Fix:** Transliterate or sanitize `user` value to ASCII before sending.
+
+```python
+import unicodedata, re
+
+def safe_user_id(raw: str) -> str:
+    \"\"\"Convert any string to BuddyPro-safe user ID.
+    Allowed: [A-Za-z0-9._-], max 128 chars, not purely numeric, no spaces.
+    \"\"\"
+    # Strip diacritics
+    normalized = unicodedata.normalize('NFKD', raw)
+    ascii_only = normalized.encode('ascii', 'ignore').decode('ascii')
+    # Replace anything non-allowed with '-'
+    safe = re.sub(r'[^A-Za-z0-9._-]', '-', ascii_only)
+    # Collapse repeated dashes
+    safe = re.sub(r'-+', '-', safe).strip('-')
+    # Ensure not purely numeric
+    if safe.isdigit():
+        safe = f'u-{safe}'
+    return safe[:128]
+
+# Examples:
+safe_user_id('téma_a_publikum')          # → 'tema_a_publikum'
+safe_user_id('Customer #42 (Jiří)')      # → 'Customer-42-Jiri'
+safe_user_id('zákazník-VIP')             # → 'zakaznik-VIP'
+```
+
+**Read `error.code` and `error.param` for other 400 errors:**
 
 | `error.code` | Meaning | Fix |
 |--------------|---------|-----|
