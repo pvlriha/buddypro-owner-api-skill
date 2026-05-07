@@ -363,16 +363,146 @@ saveToHistory: true (per user, isolated)
 systemPrompt: usually same across all branches in this set
 ```
 
-**When:** Same question, multiple isolated profiles. Each profile builds its own memory and may evolve a different framing. Tests if there's variance in the bot's advice depending on profile context.
+**When:** Same question, multiple isolated profiles. Tests if there's variance in the bot's advice depending on profile context.
 
-**Pattern:**
-- Send the SAME high-level question to 3-5 different `user` values
-- Each gets isolated answer (no leak between profiles)
-- Compare answers → variance == „different schools of thought" within the KB
+🔴 **Important caveat — don't over-parallelize:** if the bot's KB has ONE clear answer to a question, sending it to 5 user profiles just gets you 5 nearly-identical answers. **That's waste.** Multiple user profiles have value ONLY when there's reason to expect variance — the question is open-ended, the KB has multiple competing frameworks, or there's legitimate dispute in the domain.
 
-**Strength:** Surfaces variance. If 5/5 give same answer, the principle is robust. If they diverge, you've found nuance the single-thread approach would miss.
+**When Type C IS valuable:**
+- *„What frameworks exist for X?"* — KB likely has multiple frameworks
+- *„What are the trade-offs between A and B?"* — different profiles might emphasize different sides
+- *„Range of expert opinion on X"* — explicitly asking for variance
+- *„Common mistakes vs best practices"* — open-ended
 
-**Weakness:** More expensive (5× the calls). Only worth it for top-level topic, not every angle.
+**When Type C is WASTE (use Type A instead):**
+- *„How exactly does X work?"* — single canonical answer
+- *„Step-by-step process for X"* — single procedural answer
+- Any question where bot's role-selection consistently picks the same role
+
+**Heuristic:**
+1. Send question to 1 user profile first (cheap probe)
+2. If answer feels comprehensive and decisive → skip Type C
+3. If answer hints at variance („there are several approaches", „some experts say...") → Type C with 3-5 users to surface that variance
+4. If first answer is generic/shallow → use Type A (continuous chat to dig deeper) instead of Type C parallel
+
+**Strength when used right:** surfaces real variance the single-thread approach would miss.
+
+**Weakness when overused:** identical answers × 5 calls = 5× cost for 1× insight. Worse than Type A for most use cases.
+
+## 🎯 General principles for branch strategy (empirically validated)
+
+These are the field-tested heuristics for picking and combining branch types. Built on Pavel's insights + live testing on Pavel Říha AI instance (2026-05-07).
+
+### Principle 1 — Depth beats breadth in most cases
+
+Live test confirmed: **4 Type A continuous turns produced ~3000 words of rich, structured content with concrete examples + edge cases + synthesis-ready output**. **4 Type C parallel profiles on same question produced ~1500 words with 75%+ redundancy** and 1 wasted call (bot asked for context instead of answering).
+
+**Per-call value comparison:**
+| Branch | 4 calls produces | Quality |
+|--------|------------------|---------|
+| Type A (continuous, builds on memory) | concrete example, edge cases, synthesis-ready section | ⭐⭐⭐⭐⭐ |
+| Type C (parallel isolated profiles) | mostly redundant general principles | ⭐⭐ |
+
+Default budget allocation:
+- 60-70% → Type A (continuous chat with memory)
+- 15-20% → Type B (broad probe one-shot, just to identify principles)
+- 0-15% → Type C (perspective probe — ONLY when variance expected)
+- 5-10% → Type D (persona) when deliverable needs tier framing
+
+### Principle 2 — Open new session when, not by default
+
+Don't pre-allocate „N parallel sessions" up front. **Sessions are opened deliberately** based on what's discovered:
+
+**Open a NEW session when:**
+- Branch split — bot mentions 2+ distinct sub-topics in one turn that each warrant own depth (start new Type A per sub-topic)
+- Original session is locked in to one perspective and you need a fresh take
+- Memory pollution — previous turns made the bot overly biased toward one framing
+- Discovered an unexpected principle worth its own deep dive (Type E spawned)
+- Need genuinely independent perspective check (Type C — but use sparingly)
+
+**Don't open a new session when:**
+- Just to „get more answers" — that's waste if KB is consistent
+- For variance probing of a question with a single canonical answer
+- For depth — depth comes from MORE TURNS in the same session, not more sessions
+
+### Principle 3 — Question phrasing varies by branch type
+
+| Branch type | How to phrase question |
+|-------------|------------------------|
+| **Type A** (continuous) | Each turn BUILDS on previous: „Now go deeper on X you mentioned", „What's the most common mistake when applying X?", „Give me a concrete example of X with numbers" — never re-ask, always advance |
+| **Type B** (broad probe) | Different angles per call: „From angle A...", „From angle B...", „From the perspective of [audience]..." — diversity is the point |
+| **Type C** (perspective) | IDENTICAL question word-for-word to N profiles. The variance comes from different memory contexts, not different questions. |
+| **Type D** (persona) | Same topic, different persona framings via `replace` system prompt. Each call has its own custom persona. |
+| **Type E** (drill-down spawned) | Narrow + specific: „Earlier you mentioned [principle X]. Tell me everything specific about it." — focused, not broad |
+
+### Principle 4 — Branch splitting (rozdvojit větev)
+
+When DURING a Type A continuous chat, the bot mentions 2+ distinct sub-topics in one turn that you both want to explore deeply, **don't try to follow both in the same chat** — fork:
+
+```
+Continuous chat (Type A, user=research-pricing-X)
+├─ Turn 1: bot mentions principles A, B, C
+├─ Turn 2: deep on A
+├─ Turn 3: bot reveals A has two sub-aspects A1 and A2
+│           ↓ FORK HERE
+├─ KEEP this chat going on A1 (Turns 4-6)
+└─ SPAWN new chat for A2 (user=research-pricing-X-A2)
+   └─ Continue A2 deep dive there in parallel
+```
+
+**Why fork:** following A1 and A2 in same chat causes turn 4 to inherit context from A1, which biases the A2 framing. Forking keeps each pure.
+
+**When NOT to fork:** if A1 and A2 are tightly related (same principle, different facets) — you may want to keep them together for richer cross-reference. Split only when they're genuinely independent.
+
+### Principle 5 — Memory bias accumulates
+
+After 5+ turns in Type A, the bot's „session role" is locked in. It will frame all subsequent answers through that role. This is usually good (consistency), but sometimes you want to break out:
+
+**Reset by spawning a NEW session** when:
+- You've reached saturation in current chat
+- Want to test if the same question yields different framing under fresh context
+- Topic shifted significantly mid-research (new sub-topic that doesn't fit the established frame)
+
+### Principle 6 — Type C only with prior probe
+
+🔴 **Empirically validated** — running Type C blindly with 4-7 user profiles on a question that has a canonical answer just costs 4-7× the budget for 1× insight. **ALWAYS probe first:**
+
+```python
+# Cheap probe (1 call) before deciding to run Type C
+probe_answer = call_bp(stable_user, top_question)
+
+# Decide based on probe content
+if signals_variance_expected(probe_answer):  # mentions "several approaches", "depends on...", multiple frameworks
+    run_type_c_with_3_to_5_profiles()
+else:
+    skip_type_c()  # save the budget for Type A depth instead
+```
+
+### Principle 7 — Bot may refuse generic questions
+
+In live test: 1/4 Type C profiles **refused to answer** the generic „pricing principles?" question — instead asked for context (typical coaching behavior). This is real domain-specific behavior of the bot's persona.
+
+**Implications:**
+- For Type C variance probes, formulate questions that ARE answerable without context (state-of-domain questions, framework taxonomies)
+- For Type A continuous chats, give the bot context UPFRONT to skip its „what's your situation?" gate
+- Budget for ~10-20% lost calls when probing generic questions in expert-coach instances
+
+### 🔴 Heuristic: depth (Type A) > breadth (Type C) in most cases — empirically confirmed
+
+Pavel's insight from empirical observation: **long continuous conversations that build on memory often produce richer material than parallel isolated probes.**
+
+Why:
+- Type A turn 5 has the bot's full self-context from turns 1-4. The bot can build, refine, give nuanced follow-ups.
+- Type C 5 isolated turns each start cold. Each may give a competent but generic-feeling answer.
+- For depth and quality of single-document output, prefer Type A.
+- For breadth-coverage and variance-detection, Type C has its place — but selectively.
+
+**Default budget allocation should lean depth:**
+- 60-70% of calls into Type A (continuous chat with memory)
+- 15-20% into Type B (broad probe one-shot)
+- 10-15% into Type C (perspective probe ONLY when variance expected)
+- 5-10% into Type D (persona) when the deliverable needs tier-specific framing
+
+This is the OPPOSITE of „more parallel = better." For BuddyPro deep research, deeper > wider in most cases.
 
 ### Type D — Custom Persona
 
@@ -437,10 +567,12 @@ PHASE 4: DEEP DIVE
   ↓ Run multiple branches in parallel where possible
   ↓ ~10-15 calls
   
-PHASE 5: PERSPECTIVE PROBE
-  ↓ Spawn Type C: 3-4 different user IDs, same big-picture question
-  ↓ Compare answers, log variance
-  ↓ ~3-4 calls
+PHASE 5: PERSPECTIVE PROBE (CONDITIONAL — use only when variance is expected)
+  ↓ FIRST: send the candidate question to 1 user profile
+  ↓ IF answer feels decisive/canonical → SKIP Phase 5 entirely
+  ↓ IF answer hints at multiple approaches → Type C with 3-4 users
+  ↓ NEVER blindly run Type C with 5+ users on a single-answer question
+  ↓ ~0-4 calls (often 0)
   
 PHASE 6: PERSONA ANGLES (optional, for content generation)
   ↓ For each output audience tier: spawn Type D
@@ -480,23 +612,32 @@ Every research session has a hard cap on calls. **Deep research is not cheap on 
 - Phase 6 persona angles often need 3-5 personas, each with follow-ups
 - Phase 8 refinement may need re-probing — keep 10% reserve
 
-The orchestrator distributes the budget:
+The orchestrator distributes the budget — **DEPTH-BIASED** (depth > breadth in most cases):
+
 - Phase 1 (plan + decompose) — 1-2 calls
-- Phase 2 (broad probe) — 25% of budget (8-15 angles in parallel)
+- Phase 2 (broad probe) — 15-20% of budget (5-8 angles, just enough to identify principles)
 - Phase 3 (principle detection) — 0 calls (analysis on existing answers)
-- Phase 4 (deep dive) — 45% of budget (largest allocation — quality lives here)
-- Phase 5 (perspective probe) — 15% of budget (5-7 user variance check)
-- Phase 6 (persona angles) — 10% of budget when relevant (skip for some scenarios)
+- Phase 4 (DEEP DIVE) — **55-65% of budget** (largest allocation — Type A continuous chat per principle, 5-10 turns each)
+- Phase 5 (perspective probe) — 0-10% of budget (CONDITIONAL — only when variance expected; often skipped)
+- Phase 6 (persona angles) — 5-10% of budget when relevant (skip for some scenarios)
 - Phase 7 (synthesis) — 0-2 calls (mostly Claude Code, occasional clarification call)
-- Phase 8 (refine reserve) — 5% buffer
+- Phase 8 (refine reserve) — 5-10% buffer
 
 **Concrete example for Standard tier (35 calls):**
 - Plan: 1 call
-- Broad probe: 9 calls (9 angles)
-- Deep dive: 16 calls (4 principles × 4 turns each)
-- Perspective: 5 calls (5 different user values, same question)
-- Persona: 3 calls (3 audience tiers)
-- Refine reserve: 1 call
+- Broad probe: 7 calls (7 angles to identify principles)
+- Deep dive: 20 calls (4 principles × 5 turns each — DEPTH FOCUS)
+- Perspective: 0-3 calls (only if variance probe-shows it's worth doing)
+- Persona: 3 calls (3 audience tiers IF deliverable needs tier framing)
+- Refine reserve: 2-4 calls
+
+**Concrete example for Deep tier (60 calls):**
+- Plan: 2 calls
+- Broad probe: 10 calls (10 angles)
+- Deep dive: 36 calls (6 principles × 6 turns each)
+- Perspective: 4 calls (variance probe for the central question)
+- Persona: 4 calls (4 audience tiers)
+- Refine reserve: 4 calls
 
 ### Parallelism
 
