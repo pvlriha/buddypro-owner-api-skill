@@ -21,6 +21,7 @@
 | Topology pattern affects retrieval breadth | 8 topologies × 6 turns same topic | ✅ EMPIRICAL — ALL 8 produced 1-4% cross-topology sim, GENUINELY INDEPENDENT streams |
 | Strom topology highest volume (484 words/turn) | Topology test 2026-05-07 | ✅ EMPIRICAL — strom > hloubka > inverze > spirala > zigzag > sirka > kruh > meta |
 | Cross-topology divergence > Strategy B fork divergence | Comparing tests | ✅ EMPIRICAL — topology variance 1-4%, fork variance 1-4% (similar level — combine for max) |
+| Optimal fork count: 3-6 forks × 4-8 turns | Exp B (24 calls budget × 4 configs) | ✅ EMPIRICAL — 6×4 = 6320 words winner, 3×8 = best divergence (3.0%), 12×2 = worst (5128 words, 6.2% sim), 1×24 = mediocre (5353) |
 
 
 This file describes a sophisticated multi-branch research system using BuddyPro Owner API as the expert knowledge backend. It goes far beyond a single sequential interview pattern: it uses **parallel branches**, **dynamic branch spawning**, **mixed memory strategies**, and **synthesis with conflict detection** to produce comprehensive research documents.
