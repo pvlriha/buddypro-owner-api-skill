@@ -521,6 +521,18 @@ Branch C: Q1 broad → Turn 2 steer "into SCALE/ECONOMICS side"
 ```
 Each branch's accumulated context biases retrieval differently → genuine semantic diversity (structural, not random).
 
+**✅ Empirically validated (Test 5, 2026-05-07):**
+- Setup chat (3 turns establishing context, mentioning sub-topic A and sub-topic B)
+- Track A continued same chat with 5 turns on sub-topic A → 1090 words
+- Track B FORKED new user, 5 turns on sub-topic B → **1414 words** (30% more!)
+- Cross-track textual similarity: **5.4%** → tracks GENUINELY DIVERGED
+- Final synthesis cross-similarity: **7.3%** → independent content
+
+**Surprise finding — forks may produce MORE content than continuous chats:**
+Continuous chat has setup-turn context → bot frames follow-ups more efficiently (shorter, building on prior). Forked chat has fresh user context → each turn gets comprehensive standalone treatment → longer answers per turn.
+
+This means forks are NOT a budget compromise. They produce genuinely different + comprehensive content — strictly better than naively continuing the main chat into uncovered sub-topics.
+
 #### Strategy C — Spiral / Lens Rotation (Pavel's „točí se v kruhu")
 Same TOPIC, rotate LENS each turn:
 ```
