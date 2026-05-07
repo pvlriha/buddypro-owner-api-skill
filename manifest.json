@@ -1,0 +1,23 @@
+{
+  "name": "buddypro-owner-api",
+  "version": "0.1.0",
+  "description": "Claude Code skill for integrating with BuddyPro Owner API",
+  "author": "pvlriha",
+  "license": "MIT",
+  "files": {
+    "skill/SKILL.md": "$HOME/.claude/skills/buddypro-owner-api/SKILL.md",
+    "VERSION": "$HOME/.claude/skills/buddypro-owner-api/VERSION",
+    "skill/references/api-reference.md": "$HOME/.claude/skills/buddypro-owner-api/references/api-reference.md",
+    "skill/references/use-cases.md": "$HOME/.claude/skills/buddypro-owner-api/references/use-cases.md",
+    "skill/references/code-recipes.md": "$HOME/.claude/skills/buddypro-owner-api/references/code-recipes.md",
+    "skill/references/multi-tenancy.md": "$HOME/.claude/skills/buddypro-owner-api/references/multi-tenancy.md",
+    "skill/references/management-commands.md": "$HOME/.claude/skills/buddypro-owner-api/references/management-commands.md",
+    "skill/references/troubleshooting.md": "$HOME/.claude/skills/buddypro-owner-api/references/troubleshooting.md",
+    "command/buddypro-api.md": "$HOME/.claude/commands/buddypro-api.md"
+  },
+  "dependencies": {
+    "curl": "any version (default on macOS, Linux, Windows 10+)"
+  },
+  "install_url": "https://docs.buddypro.ai/skill",
+  "repo": "https://github.com/pvlriha/buddypro-owner-api-skill"
+}
