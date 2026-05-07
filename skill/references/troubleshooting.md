@@ -33,6 +33,27 @@ curl -s -X POST https://api.buddypro.ai/v1/chat/completions \
 
 **Fix:** in Telegram, run `/untest` first, then `/generateApiKey:owner-key`. The new key has full owner permissions.
 
+### Generic "Command not allowed" reply (HTTP 200 — confusing!)
+
+**Symptoms:** you call `/checkSetup`, `/stats`, `/investigateAnswer:`, etc. — HTTP 200 OK, but `choices[0].message.content` says:
+```
+Command not allowed. You might not have permission for this command or you spelled it wrong.
+```
+
+This is **NOT a 403 HTTP error** — it's a normal 200 response with a specific text. The bot is telling you: this command exists but your current permission/profile context can't run it.
+
+**Common cause:** Same as 403 above — API key was generated from a profile that doesn't have management permissions, OR the key was created in a previous session where the user was in `/test:` mode without realizing it.
+
+**Fix procedure:**
+1. In Telegram (NOT via API — `/untest` is API-blocked):
+   - Send `/untest` to the bot
+   - Bot replies "Command not available. You are not on a testing profile" if you were already in owner mode (good) or "Returned to your real profile" (you were in test mode)
+2. Verify owner profile: send `/myid` — should return your owner ID without `test_` prefix
+3. Invalidate the suspicious key: `/invalidateApiKey:{old-key-name}`
+4. Generate a fresh key: `/generateApiKey:owner-key-v2`
+5. Update `BUDDYPRO_API_KEY` env var with the new key
+6. Re-test the failing command — should now return real data
+
 ### 429 `rate_limit_error` / `rate_limit_exceeded`
 
 **Symptoms:** intermittent 429 during batch jobs.
@@ -117,6 +138,21 @@ Bot detects language from user message. To force a language:
 - Include the desired language in the message itself ("Please answer in English: ...")
 - Or use `x_buddy_systemPrompt` with `mode: "add"` and a language directive
 - Or set `/setLanguage:{code}` instance-wide (this controls ADMIN messages only, not user replies)
+
+### `x_buddy_systemPrompt` with `replace` mode doesn't fully override
+
+**Symptoms:** you set `x_buddy_systemPromptMode: "replace"` with a strict instruction (e.g., „respond ONLY with valid JSON in format X") — but the bot ignores it and responds in its normal voice.
+
+**What we observed:** Even in `replace` mode, the bot retains some core instance behavior (its persona, response style, the tendency to add emoji or commentary). For example, asked „what is 2+2?" with a strict JSON system prompt, the bot replied „4 😄" instead of `{"answer": "4"}`.
+
+**Why:** The instance has a strong baseline behavior baked into its trained personality + role definitions. The custom system prompt influences but doesn't fully replace the core persona. **`replace` is more of a "strong override" than a "hard reset."**
+
+**Workarounds:**
+1. **Make the instruction extremely explicit and repeated:** *„You MUST respond ONLY with valid JSON. NO prose. NO emoji. NO commentary. JUST JSON. Example: {\"answer\": \"4\"}. Your response:"*
+2. **Combine `replace` mode with `x_buddy_saveToHistory: false`** — fresh context each call, less of the bot's accumulated personality leaking in
+3. **Use multiple-choice format** when possible — the bot complies better with constrained outputs than with strict format dictates
+4. **Post-process the reply** — strip emoji, code-fences, or extra prose programmatically after the fact (see `code-recipes.md` Pattern 4)
+5. **For mission-critical structured output:** consider not using BuddyPro and using a stock LLM API instead. BuddyPro is designed for personality, not structured data extraction.
 
 ### "Voice clone reply doesn't sound right"
 

@@ -118,6 +118,23 @@ User wants to integrate BuddyPro
 
 6. **Don't expose `bapi_` keys client-side.** They have full access to the instance. Always proxy through your own backend.
 
+## 🔴 Safety Policy — Critical Commands
+
+The skill's API key controls a **real production BuddyPro instance with real users, real money, real customer data**. Many slash commands change instance behavior, customer experience, or pricing. Most are irreversible.
+
+**Before passing any non-green slash command to the API, the skill MUST classify and confirm.** See `references/management-commands.md` for the complete risk matrix and confirmation templates. Quick summary:
+
+| Level | Confirmation requirement |
+|-------|--------------------------|
+| 🟢 Read-only / Sync | No confirmation. Just execute. |
+| 🟡 Limited scope changes | Single explicit yes/no in user's language |
+| 🟠 Instance behavior / accumulating cost | DOUBLE confirmation — explain WHAT and WHY, get yes, then re-state and get yes again |
+| 🔴 Mass impact / financial / irreversible | Risk warning + DOUBLE confirmation. **For broadcasts (`/messageAllUsers`): MANDATORY 2-step procedure — test send to owner first, then real broadcast only after explicit confirmation** |
+
+🛑 **Never skip the procedure**, even if the user pushes for shortcuts. „I trust it, just send" is NOT permission to skip the test. The 5-second delay is the cheapest insurance against an unrecoverable mistake.
+
+If you encounter a slash command not in the risk matrix, treat it as 🟠 by default and ask the user what it does before executing.
+
 ## Skill self-update check
 
 Before answering ANY task, run this check (silent, log only the result):
@@ -134,4 +151,4 @@ If `UPDATE_AVAILABLE`, mention it once at the start of your response — **in th
 
 If user asks to update, fetch `https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/INSTALL.md` and re-run the install procedure. (Production note: once `docs.buddypro.ai/skill` redirect is set up, that becomes the user-facing canonical URL — but the install procedure stays the same; only this URL changes.)
 
-*Version: 0.3.0 — see VERSION file*
+*Version: 0.3.1 — see VERSION file*

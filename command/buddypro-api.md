@@ -16,6 +16,21 @@ After onboarding is complete, route based on the user's request:
 - Errors / rate limits / debugging → `references/troubleshooting.md`
 - Official docs lookup → `references/docs-references.md`
 
+## 🔴 Safety policy — read before sending ANY slash command
+
+The API key controls the user's real production BuddyPro instance with real customers and real money. Many slash commands change instance behavior — most are irreversible.
+
+**Before passing any non-green slash command via API, classify and confirm:**
+
+| Risk | Confirmation |
+|------|--------------|
+| 🟢 Read-only / sync | None |
+| 🟡 Limited scope | Single yes/no |
+| 🟠 Behavior/cost change | DOUBLE confirmation |
+| 🔴 Mass impact / financial / irreversible | Risk warning + DOUBLE confirmation. Broadcasts (`/messageAllUsers`) require MANDATORY 2-step procedure (test send to owner first, then real broadcast) |
+
+Full risk matrix in `references/management-commands.md`. **Never skip the procedure even if user pushes for shortcuts.**
+
 🔴 **Always respond in the user's language.** BuddyPro owners are global. Detect language from how the user spoke to you. Keep technical identifiers (`bapi_`, `BUDDYPRO_API_KEY`, `/generateApiKey`, etc.) verbatim across languages.
 
 $ARGUMENTS
