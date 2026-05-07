@@ -4,6 +4,48 @@ This file describes a sophisticated multi-branch research system using BuddyPro 
 
 For the simpler single-bot sequential pattern, see Pattern X3 in [`use-cases.md`](./use-cases.md). This file is the advanced architecture for when quality and depth matter most.
 
+## 🔴 CRITICAL principle — separation of concerns
+
+> **The output is NOT the conversation. The output is the DOCUMENT that Claude Code writes USING the conversation as source material.**
+
+This is non-negotiable. Owners want a polished deliverable, not a transcript of how it was made.
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  BuddyPro instance                                          │
+│  Role: SOURCE OF EXPERT KNOWLEDGE                           │
+│  Output: raw answers across many branches                   │
+│  (these are working material, NOT user-facing)              │
+└────────────────────────────────────────────────────────────┘
+                          ↓ feeds into ↓
+┌────────────────────────────────────────────────────────────┐
+│  Claude Code (the agent running this skill)                 │
+│  Role: WRITER / SYNTHESIZER                                 │
+│  Input: BuddyPro's raw answers + external research          │
+│         + owner's specified output format                   │
+│  Output: POLISHED DOCUMENT in the format owner asked for    │
+│  (this is what the owner sees)                              │
+└────────────────────────────────────────────────────────────┘
+```
+
+**Implications:**
+- Never give the owner a dump of the bot's responses — that's an internal artifact.
+- Always produce a document in the format the owner asked for (markdown report, blog post, sales letter, webinar script, Q&A reference, etc.).
+- The conversation transcript is **available on request** — if owner says „show me the raw research," surface it. Otherwise, hide it.
+- The bot's voice/persona is the BACKBONE of the synthesis: extract its frameworks, examples, signature phrases — but Claude Code does the writing/structuring/editing.
+- The expert's distinctive voice should come through in the final document via the bot's signature phrases and frameworks (which Claude Code preserves), but the structure, flow, and editorial choices are Claude Code's.
+
+**When to surface raw conversation:**
+- Owner explicitly asks: *„show me the raw answers", „let me see what the bot actually said"*
+- Debugging: skill failed to synthesize, owner needs to see source material
+- Logging/audit: save to a file with timestamp for owner's reference
+- Optional: include collapsed/footnoted „source quotes" in the final doc
+
+**Never:**
+- Default output = transcript of API responses
+- „Here's what the bot said for each angle" as the deliverable
+- Forwarding bot answers verbatim without synthesis
+
 > 🔗 **Related sub-skills:**
 > - [`api-features-deep-dive.md`](./api-features-deep-dive.md) — foundation for `user` / `saveToHistory` / `systemPrompt` mechanics
 > - [`use-cases.md`](./use-cases.md) Pattern X3 — simpler sequential version
@@ -405,12 +447,13 @@ PHASE 6: PERSONA ANGLES (optional, for content generation)
   ↓ Get tier-specific framing of the topic
   ↓ ~2-3 calls
   
-PHASE 7: SYNTHESIZE
+PHASE 7: SYNTHESIZE (Claude Code is the writer here, not BuddyPro)
   ↓ Cluster all answers by theme
   ↓ Dedupe near-identical content
   ↓ Identify consensus (everyone says X)
   ↓ Flag contradictions (branch A says X, branch B says ¬X)
-  ↓ Construct document in target output format
+  ↓ Construct DOCUMENT (not transcript) in target output format
+  ↓ The bot's frameworks/phrases/examples are preserved; structure is Claude's
   
 PHASE 8: REFINE
   ↓ Show document to owner
@@ -423,19 +466,37 @@ PHASE 8: REFINE
 
 ### Budget cap
 
-Every research session has a hard cap on calls:
-- **Light**: 10 calls / ~$0.50 — quick research, surface depth
-- **Standard**: 25 calls / ~$1.25 — default, good coverage
-- **Deep**: 50 calls / ~$2.50 — comprehensive, multi-perspective
-- **Exhaustive**: 100+ calls / $5+ — owner explicitly opts in
+Every research session has a hard cap on calls. **Deep research is not cheap on calls — quality requires depth.** Realistic budget tiers:
+
+- **Quick**: 15-20 calls / ~$1 / ~2 min — surface coverage, single perspective
+- **Standard**: 30-40 calls / ~$2 / ~4 min — default for most deep research, good multi-angle coverage
+- **Deep**: 50-75 calls / ~$3-4 / ~6-8 min — comprehensive multi-perspective with thorough drill-downs
+- **Exhaustive**: 80-150 calls / ~$4-7.50 / ~10-15 min — owner explicitly opts in for client deliverables, books, master courses
+
+**Why higher than you'd guess:**
+- Phase 2 broad needs 8-12 angles minimum for true breadth
+- Phase 4 deep dive on each principle = 5-10 turns × 5 principles = 25-50 calls
+- Phase 5 perspective probe with 5-7 user profiles (not 3-4) = better variance signal
+- Phase 6 persona angles often need 3-5 personas, each with follow-ups
+- Phase 8 refinement may need re-probing — keep 10% reserve
 
 The orchestrator distributes the budget:
-- Phase 1 (plan) — 1 call
-- Phase 2 (broad) — 30% of budget
-- Phase 4 (deep) — 40% of budget
-- Phase 5 (perspective) — 15% of budget
-- Phase 6 (persona) — 10% of budget
-- Phase 8 (refine) — 5% reserve
+- Phase 1 (plan + decompose) — 1-2 calls
+- Phase 2 (broad probe) — 25% of budget (8-15 angles in parallel)
+- Phase 3 (principle detection) — 0 calls (analysis on existing answers)
+- Phase 4 (deep dive) — 45% of budget (largest allocation — quality lives here)
+- Phase 5 (perspective probe) — 15% of budget (5-7 user variance check)
+- Phase 6 (persona angles) — 10% of budget when relevant (skip for some scenarios)
+- Phase 7 (synthesis) — 0-2 calls (mostly Claude Code, occasional clarification call)
+- Phase 8 (refine reserve) — 5% buffer
+
+**Concrete example for Standard tier (35 calls):**
+- Plan: 1 call
+- Broad probe: 9 calls (9 angles)
+- Deep dive: 16 calls (4 principles × 4 turns each)
+- Perspective: 5 calls (5 different user values, same question)
+- Persona: 3 calls (3 audience tiers)
+- Refine reserve: 1 call
 
 ### Parallelism
 
@@ -626,10 +687,10 @@ This architecture is the v1 design. Areas to refine through use:
 
 | Budget tier | Calls | Cost | Time | Memory written |
 |-------------|-------|------|------|----------------|
-| Light | 10 | ~$0.50 | ~30s | ~3 user profiles created |
-| Standard | 25 | ~$1.25 | ~90s | ~7-10 user profiles |
-| Deep | 50 | ~$2.50 | ~3 min | ~15-20 user profiles |
-| Exhaustive | 100+ | $5+ | 5+ min | ~25+ user profiles |
+| Quick | 15-20 | ~$1 | ~2 min | ~3-5 user profiles |
+| Standard | 30-40 | ~$2 | ~4 min | ~10-12 user profiles |
+| Deep | 50-75 | ~$3-4 | ~6-8 min | ~15-20 user profiles |
+| Exhaustive | 80-150 | $4-7.50 | 10-15 min | ~25+ user profiles |
 
 Memory note: each Type A/C branch creates a `user` profile. Profiles persist (no public delete API). For sensitive research: use stateless mode for all branches (sacrifices some quality but leaves no trace).
 
