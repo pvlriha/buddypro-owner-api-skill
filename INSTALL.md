@@ -55,20 +55,54 @@ Read this file: `$HOME/.claude/skills/buddypro-owner-api/SKILL.md` (use the lite
 
 This loads the skill's instructions so you can apply it immediately — no Claude Code restart needed.
 
-## Step 4: Pick the right confirmation message
+## Step 4: Send confirmation message — IN THE USER'S LANGUAGE
 
-Read the `INSTALLED_VERSION` and `STUB_REFERENCE_FILES` from Step 1's output.
+🔴 **Critical:** Detect the user's language from how they spoke to you in this conversation, then write the confirmation in that language. BuddyPro owners are global — Czech, English, Spanish, German, etc. Do NOT default to Czech.
 
-### Case A — `STUB_REFERENCE_FILES > 0` (alpha release)
+**Detection rule:** Match the language of the user's most recent message. If unclear, default to English.
 
-The reference files are placeholders. Be honest with the user. Send EXACTLY this message in Czech:
+Read the `INSTALLED_VERSION` and `STUB_REFERENCE_FILES` from Step 1's output, then build a message with these elements:
 
+### Required structure (any language)
+
+1. ✅ icon + "skill installed" + version (mention `(v{VERSION} alpha)` if `STUB_REFERENCE_FILES > 0`)
+2. (alpha only) one-line heads-up that some reference files are placeholders, basic usage works
+3. Next-step instructions for generating an API key:
+   - Open the BuddyPro bot in Telegram
+   - Send `/generateApiKey:my-agent`
+   - Save returned `bapi_...` key (shown once)
+   - Set env var: `export BUDDYPRO_API_KEY="bapi_..."` in shell profile
+4. Suggested first command: `/buddypro-api send "hello" to my instance`
+
+### Reference templates (use as a starting point, translate from)
+
+**English (use this if user spoke English, or as the default fallback):**
 ```
-✅ BuddyPro Owner API skill nainstalován (v{INSTALLED_VERSION} alpha).
+✅ BuddyPro Owner API skill installed (v{INSTALLED_VERSION}{ALPHA_SUFFIX}).
 
-⚠️ Heads-up: tato verze obsahuje hlavní SKILL.md a slash command,
-ale {STUB_REFERENCE_FILES} ze 6 reference souborů jsou ještě placeholdery
-(plný obsah přijde v další verzi). Základní volání API funguje hned.
+{ALPHA_NOTE_IF_STUBS}
+
+Next step: generate your API key.
+
+1. Open your BuddyPro bot in Telegram
+2. Send the command: /generateApiKey:my-agent
+3. The bot will send a key starting with `bapi_...` (shown only once — copy it now!)
+4. Save it as an environment variable:
+   echo 'export BUDDYPRO_API_KEY="bapi_xxxxxxxxxxxx"' >> ~/.zshrc
+   source ~/.zshrc
+
+Then try: /buddypro-api send "hello" to my instance
+```
+
+Where:
+- `{ALPHA_SUFFIX}` = ` alpha` if `STUB_REFERENCE_FILES > 0`, else empty
+- `{ALPHA_NOTE_IF_STUBS}` = `⚠️ Heads-up: this version ships the main SKILL.md and slash command, but {N} of 6 reference files are still placeholders (full content in a later release). Basic API calls work right now.` — only if `STUB_REFERENCE_FILES > 0`, else omit (and the blank line above it).
+
+**Czech (use this if user spoke Czech):**
+```
+✅ BuddyPro Owner API skill nainstalován (v{INSTALLED_VERSION}{ALPHA_SUFFIX}).
+
+{ALPHA_NOTE_IF_STUBS_CZ}
 
 Další krok: vygeneruj si API klíč.
 
@@ -82,28 +116,9 @@ Další krok: vygeneruj si API klíč.
 Pak zkus: /buddypro-api pošli "ahoj" mojí instanci
 ```
 
-Replace `{INSTALLED_VERSION}` with the actual version (e.g., `0.1.1`) and `{STUB_REFERENCE_FILES}` with the actual count.
+Where `{ALPHA_NOTE_IF_STUBS_CZ}` = `⚠️ Heads-up: tato verze obsahuje hlavní SKILL.md a slash command, ale {N} ze 6 reference souborů jsou ještě placeholdery (plný obsah přijde v další verzi). Základní volání API funguje hned.`
 
-### Case B — `STUB_REFERENCE_FILES == 0` (production release)
-
-Reference files are complete. Send EXACTLY this message in Czech:
-
-```
-✅ BuddyPro Owner API skill nainstalován (v{INSTALLED_VERSION}).
-
-Další krok: vygeneruj si API klíč.
-
-1. Otevři svého BuddyPro bota v Telegramu
-2. Pošli mu příkaz: /generateApiKey:my-agent
-3. Bot ti pošle klíč začínající `bapi_...` (jen jednou — zkopíruj hned!)
-4. Ulož si ho jako proměnnou prostředí:
-   echo 'export BUDDYPRO_API_KEY="bapi_xxxxxxxxxxxx"' >> ~/.zshrc
-   source ~/.zshrc
-
-Pak zkus: /buddypro-api pošli "ahoj" mojí instanci
-```
-
-> **Note:** Confirmation message is hard-coded Czech because BuddyPro's primary audience is Czech-first. If the user is clearly using English or another language, translate proportionally — keep the structure (✅ icon, version, next steps).
+**Other languages (Spanish, German, French, Slovak, etc.):** Translate the structure naturally into the user's language. Keep the technical terms (`bapi_`, `BUDDYPRO_API_KEY`, `/generateApiKey`, `/buddypro-api`) verbatim — they're identifiers, not words to translate.
 
 ## Uninstall (for reference)
 

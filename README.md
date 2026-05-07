@@ -16,15 +16,17 @@ That's it. Claude Code downloads the skill, installs it, and tells you how to ge
 
 ### Use
 
-After install, say things like:
+After install, say things like (in any language — Claude Code responds in the language you use):
 
-- *„send 'ahoj' to my BuddyPro bot"*
+- *„send 'hello' to my BuddyPro bot"* / *„pošli 'ahoj' mojí BuddyPro instanci"*
 - *„create a Python script that asks my bot 5 questions"*
 - *„embed my bot in a customer support chat — each customer gets their own memory"*
 - *„run /update on my instance"*
 - *„show me what knowledge chunks my bot used for the last answer"*
 
 Or use the slash command directly: `/buddypro-api {your request}`.
+
+The skill is **language-adaptive** — it detects what language you write in and responds the same way.
 
 ## What's inside
 

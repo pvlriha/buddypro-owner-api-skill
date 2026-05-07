@@ -20,11 +20,14 @@ This is done via the **Owner API**, an OpenAI-compatible REST endpoint at `https
 
 ## Prerequisites — verify before any call
 
-1. **API key.** User must have a `bapi_` key. If `BUDDYPRO_API_KEY` env var is unset:
-   - Tell user (in Czech): „Potřebuju tvůj BuddyPro API klíč. Otevři svého bota v Telegramu, pošli `/generateApiKey:my-agent`, bot ti pošle klíč začínající `bapi_`. Pak ho ulož: `echo 'export BUDDYPRO_API_KEY=\"bapi_...\"' >> ~/.zshrc && source ~/.zshrc`."
-   - Wait for confirmation before proceeding.
+🔴 **Communicate in the user's language.** BuddyPro is global (Czech, English, Spanish, German, …). Detect the language from the user's most recent message and respond in that language. The templates below are reference English; translate to whatever the user is speaking.
 
-2. **`curl` available.** Default on macOS/Linux/Win10+. If missing, instruct user to install it.
+1. **API key.** User must have a `bapi_` key. If `BUDDYPRO_API_KEY` env var is unset, tell user (in their language, EN reference template):
+   > „I need your BuddyPro API key. Open your bot in Telegram, send `/generateApiKey:my-agent`, the bot will reply with a key starting with `bapi_...`. Then save it: `echo 'export BUDDYPRO_API_KEY=\"bapi_...\"' >> ~/.zshrc && source ~/.zshrc`."
+
+   Wait for confirmation before proceeding. Keep the technical strings (`bapi_`, `BUDDYPRO_API_KEY`, `/generateApiKey`) verbatim across all languages.
+
+2. **`curl` available.** Default on macOS/Linux/Win10+. If missing, instruct user to install it (in their language).
 
 3. **Instance is set up.** The bot must have knowledge uploaded and `/update` run at least once. If user asks „why does it answer nothing?" → likely empty knowledge base.
 
@@ -115,8 +118,10 @@ REMOTE=$(curl -fsSL https://raw.githubusercontent.com/pvlriha/buddypro-owner-api
 [ "$LOCAL" != "$REMOTE" ] && echo "UPDATE_AVAILABLE: local=$LOCAL remote=$REMOTE" || echo "UP_TO_DATE: $LOCAL"
 ```
 
-If `UPDATE_AVAILABLE`, mention it once at the start of your response: „ℹ️ Nová verze skillu je k dispozici (local X.Y.Z → remote A.B.C). Pro update mi řekni: 'updatuj BuddyPro skill'."
+If `UPDATE_AVAILABLE`, mention it once at the start of your response — **in the user's language**. Reference templates:
+- EN: „ℹ️ A new version of the BuddyPro skill is available (local X.Y.Z → remote A.B.C). To update, tell me: 'update the BuddyPro skill'."
+- CZ: „ℹ️ Nová verze skillu je k dispozici (local X.Y.Z → remote A.B.C). Pro update mi řekni: 'updatuj BuddyPro skill'."
 
 If user asks to update, fetch `https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/INSTALL.md` and re-run the install procedure. (Production note: once `docs.buddypro.ai/skill` redirect is set up, that becomes the user-facing canonical URL — but the install procedure stays the same; only this URL changes.)
 
-*Version: 0.1.1 — see VERSION file*
+*Version: 0.1.2 — see VERSION file*
