@@ -427,6 +427,138 @@ systemPrompt: usually same across all branches in this set
 
 **Weakness when overused:** identical answers × 5 calls = 5× cost for 1× insight. Worse than Type A for most use cases.
 
+## 🧠 Architecture-derived strategy reasoning (the foundation)
+
+Before any strategic choice, derive expectations from BuddyPro's actual pipeline. Source: `big-picture.md` + `replyToUser.ts:366` + `ChatCompletions.ts:330` + `Pinecone.ts:126` + `PromptUtils.ts:174`.
+
+### The pipeline determines what works
+
+```
+User message → ROLE SELECTION (Gemini 2.5 Flash, last 3 msgs)
+            → KNOWHOW RETRIEVAL (Pinecone hybrid search, top 10 chunks)
+            → PROMPT ASSEMBLY (Layer 1 + role + chunks + aboutUser + history)
+            → HISTORY (last 30 msgs, max 75K chars — TRUNCATED beyond)
+            → Claude Sonnet 4.6 → response
+```
+
+### 6 architectural implications for research strategy
+
+**1. Question phrasing > profile count**
+Same Q to N profiles = ~same Pinecone vector = ~same chunks = ~same semantic content (only stochastic LLM formulation variance). N different question phrasings on 1 user produce more variance than 1 question across N profiles.
+
+**2. Type A's depth advantage is structural, not coincidental**
+Turn 5's effective query includes turns 1-4 context → embeds differently → may retrieve DIFFERENT chunks than turn 1's cold query did. This is why Test 1 saw zero saturation in 12 turns. The retrieval-context expands per turn.
+
+**3. Memory limit ~30 turns / 75K chars — critical for 50-turn pushes**
+Beyond turn 30, oldest turns drop out of LLM context. Turn 50 doesn't see turns 1-20 anymore. For 50-turn research: need **periodic summary refresh** every ~20 turns („Summarize key insights from our conversation so far") — that summary then sits in recent window and preserves foundation.
+
+**4. Role drift through long conversation = FEATURE**
+Last-3-message role selection means topic evolution → automatic role switching:
+- Turn 1: pricing → `pricing_strategist`
+- Turn 15: pricing psychology → `business_psychology`
+- Turn 30: pricing at scale → `ai_business_implementation_specialist`
+
+Long Type A naturally explores multiple roles' worth of knowledge. **Don't fight this, leverage it.**
+
+**5. Question SHAPE determines retrieval breadth**
+- Canonical („Jak X funguje?") → narrow retrieval
+- Open („Jaké přístupy k X?") → broader retrieval
+- Comparative („X vs Y") → chunks for both
+- Specific („Konkrétní příklad") → case-study chunks
+- Meta („Co je nejdůležitější o X") → consolidation chunks
+
+Within ONE Type A chain, ROTATE shapes to expand retrieval diversity per turn.
+
+**6. Branch fork ≠ Type C parallel**
+Main chat's accumulated context biases retrieval toward sub-topic 1.
+Fork's fresh context = unbiased query = different chunks retrieved.
+Forks are **structurally context-divergent**, not cold-parallel. This is why forks produce genuinely different content.
+
+### 5 research strategies derived from architecture
+
+#### Strategy A — Continuous Deep Chat (single user, 15-25 turns)
+- Memory accumulates within 30-turn window
+- Role naturally drifts as topic evolves → automatic multi-role coverage
+- Question-shape rotation amplifies retrieval diversity
+- Output: 6000-9000 words, ~95% novel content
+- Saturation hits when shapes stop rotating, not from time-in-session
+
+#### Strategy B — Steered Branch Forks (2-3 parallel chains)
+Force topical divergence at turn 2:
+```
+Branch A: Q1 broad → Turn 2 steer "into VALUE-BASED side"
+Branch B: Q1 broad → Turn 2 steer "into PSYCHOLOGY side"
+Branch C: Q1 broad → Turn 2 steer "into SCALE/ECONOMICS side"
+```
+Each branch's accumulated context biases retrieval differently → genuine semantic diversity (structural, not random).
+
+#### Strategy C — Spiral / Lens Rotation (Pavel's „točí se v kruhu")
+Same TOPIC, rotate LENS each turn:
+```
+Turn 1: Broad
+Turn 2: BEGINNER's view (constraint)
+Turn 3: EXPERT's view
+Turn 4: SKEPTIC's view  
+Turn 5: CONTRARIAN's view
+Turn 6: PHILOSOPHICAL depth (meta)
+```
+Best with Type D (`replace` system prompt) for stronger lens forcing. Best for comprehensive single-topic coverage from N angles.
+
+#### Strategy D — Spawn-on-Mention (dynamic branching)
+Type A main chat continues. When bot mentions independent principle → fork captures depth in parallel without polluting main chat:
+```
+Main chat: turn 1-5 on topic A
+   ↓ [bot mentions principle X]
+   ↓ FORK: 8-turn drill on X
+   ↓ [main chat unaffected, continues turn 6-10 on A]
+```
+
+#### Strategy E — Question-Shape Rotation (within single chain)
+Single user, rotate shape per turn:
+```
+T1: canonical | T2: comparative | T3: specific | T4: edge case
+T5: meta | T6: contrarian | T7: synthesis
+```
+Same user, different effective query each turn → different chunks → semantic breadth without forking.
+
+### Optimal blueprint (architecture-grounded)
+
+```
+STAGE 1 — Topology mapping (3 stateless calls, shape-rotated)
+  Quick KB topology — which concepts dominate
+
+STAGE 2 — Primary deep chat (15-25 calls, Strategy A + E)
+  Single user, question-shape rotation, 15-25 turns
+  Foundation: 6000-9000 words
+
+STAGE 3 — Steered branch forks (2-3 branches × 10-15 turns, Strategy B)
+  Different context biases → different retrievals
+  Output: 8000-15000 words divergent angles
+
+STAGE 4 — Lens rotation (5-7 calls, Strategy C + Type D)
+  Custom personas force semantic re-framing
+
+STAGE 5 — Spawn-on-mention drill-downs (5-10 calls, Strategy D)
+  Captured in parallel during Stages 2-3
+
+STAGE 6 — Synthesis verification (3-5 calls)
+  „What am I missing in [cluster X]?" — gap-filling
+
+TOTAL: 40-65 calls / $2-3.25 / 8-15 min
+OUTPUT: 25,000-40,000 words → 5-15 page polished document
+```
+
+### Pavel's „depth vs breadth vs spiral" — architecture answer
+
+| Strategy | Architectural mechanism | Best for |
+|----------|------------------------|----------|
+| **Depth** (A: 25 turns + E shape rotation) | Memory accumulation + role drift + retrieval-context expansion | Single rich topic, comprehensive |
+| **Breadth** (B: 2-3 forks) | Context-divergent retrieval streams | Multi-faceted topic, genuine variance |
+| **Spiral** (C: lens rotation) | Same chunks, different LLM framing | Single topic, maximum angle coverage |
+| **Hybrid** (all 3 in blueprint above) | All mechanisms combined | Production deliverables |
+
+The „spiral that goes in circles" Pavel mentioned isn't bad — it's a valid strategy when you want exhaustive coverage of ONE topic from MANY perspectives. The key is recognizing it's spiral by DESIGN, not by accident.
+
 ## 🎯 General principles for branch strategy (empirically validated)
 
 These are the field-tested heuristics for picking and combining branch types. Built on Pavel's insights + live testing on Pavel Říha AI instance (2026-05-07).
