@@ -542,6 +542,85 @@ def get_expert_opinion(context, question):
 # Use in Notion automation, GitHub Action, Linear webhook, etc.
 ```
 
+### D4a — Automated knowledge curation pipeline (DRIVE-INTEGRATED, very powerful)
+
+**When:** Owner wants the BuddyPro instance's know-how to stay automatically up-to-date — not static. New content flows in continuously, stale content gets removed, system prompt keeps current information, roles auto-rebalance.
+
+**Why this matters:** Most BuddyPro instances are set up once and the know-how decays over time. New techniques, new case studies, new client data, new market context — all manual. With Drive automation + agents, the instance becomes a **living knowledge base** that learns and adapts.
+
+**Example pipelines:**
+
+#### D4a.1 — YouTube channel auto-import
+Owner publishes new YouTube videos. Agent picks them up automatically and adds transcripts to instance know-how.
+
+```
+Trigger (cron, weekly): new videos on owner's channel
+  → Agent fetches video URLs
+  → Adds them to URL SOURCES doc in Drive
+  → Calls /update via Owner API
+  → Instance ingests + transcribes + indexes new content
+  → Optional: agent posts summary of new know-how added to owner's Slack
+```
+
+#### D4a.2 — Stale content removal
+Old content (>1 year old, deprecated frameworks, outdated case studies) gets pruned automatically.
+
+```
+Trigger (monthly): scan Drive SOURCES/ for files with metadata "added > 365 days ago"
+  → Agent runs /investigateAnswer: tests on relevant topics — does old content still surface?
+  → If old content surfaces and is contradicted by newer content → mark for removal
+  → Agent removes old file from Drive (after owner approval)
+  → /update propagates removal
+```
+
+#### D4a.3 — Dynamic system prompt with live info
+System prompt contains placeholders like „CURRENT_YEAR", „CURRENT_PROMOTIONS", „LATEST_CASE_STUDIES". Agent updates them automatically.
+
+```
+Trigger (weekly): refresh dynamic placeholders in SYSTEM PROMPT doc
+  → Agent fetches: current year, owner's active offers, recent client wins
+  → Agent edits SYSTEM PROMPT doc, replacing placeholders with current values
+  → Agent calls /update via Owner API
+  → Bot now knows current offer/year/wins
+```
+
+#### D4a.4 — Auto-curated knowledge from external sources
+Agent monitors external sources (industry blogs, podcasts, owner's email subscriptions, Reddit, X) and adds relevant content to instance.
+
+```
+Trigger (daily): scan defined sources for new content matching owner's domain
+  → Agent filters: relevance score > threshold, not duplicate of existing
+  → Agent drafts new Drive doc in SOURCES/TEXTS/ with proper formatting
+  → Agent notifies owner: "Found 3 new pieces — review and approve before /update"
+  → Owner approves → /update runs
+```
+
+#### D4a.5 — Role rebalancing
+As knowledge base grows, role definitions may drift. Agent monitors `/lastRole` patterns over time and suggests role adjustments.
+
+```
+Trigger (monthly): scan recent /lastRole calls in admin dashboard
+  → Identify: which roles fire most, which never fire (dead roles), which compete (conflict)
+  → Agent suggests: delete dead role, split competing role, refine descriptions
+  → Owner approves → /updateRoles regenerates clean
+```
+
+**Setup requirements:**
+- Drive MCP / API access for the agent
+- Owner API key with management command permissions (owner profile, post-`/untest`)
+- Cron / scheduler for periodic triggers (n8n, Zapier, GitHub Actions, custom server)
+- Optional: owner notification channel (Slack, email, dashboard)
+
+**Why this is transformative:** turns BuddyPro from a one-time setup into a self-maintaining expert system. The instance gets smarter automatically. Owner spends weeks of setup time, then the maintenance overhead drops to ~30 min/week of approvals instead of hours of manual editing.
+
+**Privacy/safety caveats:**
+- All Drive edits should require owner approval before /update (or at minimum, audit log + ability to revert)
+- Role rebalancing is 🟠 — confirm before applying
+- Stale content removal is 🟠 — owner must approve specific deletions
+- Auto-import from external sources: filter for relevance + dedup BEFORE adding (otherwise instance gets bloated with irrelevant content)
+
+**Code recipe:** see `code-recipes.md` Pattern 9 (advanced — to be added) for full automation script template.
+
 ### D4 — Agent backend (autonomous agent uses BuddyPro as expert brain)
 
 **When:** Building an autonomous agent (Claude Code, custom LLM agent, n8n workflow) where the agent calls BuddyPro for domain expertise during reasoning.

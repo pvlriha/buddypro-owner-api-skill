@@ -318,23 +318,45 @@ Each branch is a deliberate combination of `user` field, `saveToHistory`, and `x
 ### Type A — Continuous Deep Chat
 
 ```
-user: "research-deep-{principle}-{timestamp}"   ← STABLE across 5-10 turns
+user: "research-deep-{principle}-{timestamp}"   ← STABLE across 10-15+ turns
 saveToHistory: true (default)                    ← memory accumulates
 systemPrompt: optional, usually same for whole branch
 ```
 
 **When:** You've identified ONE principle worth deeply exploring. You want progressive deepening — each turn builds on the previous.
 
-**Pattern:**
-- Turn 1: „Tell me about {principle} broadly"
-- Turn 2: „Now go deeper on the most important aspect from your last answer"
-- Turn 3: „Give me a concrete example of [thing from turn 2]"
-- Turn 4: „What's the most common mistake when applying [thing from turn 3]?"
-- Turn 5: „Summarize the principle in 3 sentences for someone new"
+**✅ Empirically validated (live test 2026-05-07, 12 turns on coaching pricing):**
+- 12 turns produced 4,015 words of dense content
+- Average 334 words/turn, no saturation observed
+- All 12 turns showed novel content (similarity-to-previous < 10%)
+- Late turns (7-12) maintained 96% of word volume of early turns (1-6)
 
-**Strength:** Bot's memory carries. Later turns are informed by earlier answers — no need to re-prime context.
+**This means Type A can go MUCH deeper than initially thought.** The earlier estimate of „5-10 turns" was conservative. **12-15+ turns is realistic for rich topics.**
 
-**Weakness:** Bot can „lock in" to one framing early. Use Type C in parallel to break this.
+**Pattern (12-turn version, validated):**
+- Turn 1: „Tell me about {principle} broadly — top 3 high-level"
+- Turn 2: „What ELSE didn't you mention? Less obvious principles?"
+- Turn 3: „Pick the most underrated principle. Go deep with concrete example + numbers."
+- Turn 4: „Most common mistake when applying it?"
+- Turn 5: „When is this principle WRONG? Edge cases?"
+- Turn 6: „Now move to a TOTALLY DIFFERENT principle we haven't touched."
+- Turn 7: „Why does this second principle work? (mechanism not effect)"
+- Turn 8: „Relationship between first and second principles? Reinforce or contradict?"
+- Turn 9: „Principle people fear adopting but is most transformative?"
+- Turn 10: „3 metrics to know my pricing strategy works?"
+- Turn 11: „If you had to pick ONE principle as most important — which and why?"
+- Turn 12: „Synthesize everything we discussed into 300-word reference playbook"
+
+**Strength:** Bot's memory carries. Later turns informed by earlier answers — no need to re-prime context. Crucially, Type A's value compounds: turn 12 with 11 turns of accumulated context produces richer output than turn 1 alone could.
+
+**Saturation detection in practice:**
+- Watch for `sim_to_prev > 70%` between consecutive turns
+- Watch for declining word count (turn N+1 substantially shorter)
+- Watch for explicit repetition phrases („as I mentioned before", „like I said")
+- If saturation hits before turn 10 → topic may be too narrow, broaden the angle
+- If saturation doesn't hit by turn 15 → topic is rich, you can keep going
+
+**Weakness:** Bot can „lock in" to one framing early. Use Type C in parallel to break this — but only when variance is genuinely expected (most topics: NOT).
 
 ### Type B — One-Shot Stateless
 
@@ -453,14 +475,22 @@ Continuous chat (Type A, user=research-pricing-X)
 
 **When NOT to fork:** if A1 and A2 are tightly related (same principle, different facets) — you may want to keep them together for richer cross-reference. Split only when they're genuinely independent.
 
-### Principle 5 — Memory bias accumulates
+### Principle 5 — Memory bias accumulates (but slowly — empirical update)
 
-After 5+ turns in Type A, the bot's „session role" is locked in. It will frame all subsequent answers through that role. This is usually good (consistency), but sometimes you want to break out:
+**Updated 2026-05-07 based on 12-turn live test:** Earlier wisdom said „after 5+ turns the bot locks in." Live data showed **NO saturation through 12 turns** on a rich topic — bot kept producing novel content.
 
-**Reset by spawning a NEW session** when:
-- You've reached saturation in current chat
-- Want to test if the same question yields different framing under fresh context
-- Topic shifted significantly mid-research (new sub-topic that doesn't fit the established frame)
+**The real story:**
+- Memory bias is real but accumulates slowly when each turn introduces genuine new angles
+- Saturation happens when YOU stop varying the question shape, not just from time-in-session
+- A turn that asks for „the same thing in different words" → bot repeats. A turn that asks „totally different angle" → bot expands.
+
+**Reset by spawning a NEW session ONLY when:**
+- Sim-to-previous-turn > 70% (real saturation, not theoretical)
+- Topic genuinely shifted to unrelated domain
+- Bot's role-selection is consistently wrong for new sub-topic
+- You want pure perspective check unbiased by prior context
+
+**Don't reset just because you hit turn 10.** Empirically, turn 12 was still novel. Going to turn 15-20 on rich topics is reasonable.
 
 ### Principle 6 — Type C only with prior probe
 
