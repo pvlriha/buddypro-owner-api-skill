@@ -25,6 +25,7 @@ files=(
   "skill/SKILL.md:skill/SKILL.md"
   "skill/references/getting-started.md:skill/references/getting-started.md"
   "skill/references/api-reference.md:skill/references/api-reference.md"
+  "skill/references/api-features-deep-dive.md:skill/references/api-features-deep-dive.md"
   "skill/references/use-cases.md:skill/references/use-cases.md"
   "skill/references/code-recipes.md:skill/references/code-recipes.md"
   "skill/references/multi-tenancy.md:skill/references/multi-tenancy.md"

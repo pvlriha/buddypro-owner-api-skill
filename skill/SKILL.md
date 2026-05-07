@@ -43,6 +43,7 @@ If everything is ready, proceed to active-assistant mode (described in `getting-
 | User wants to... | Read this file |
 |------------------|----------------|
 | **First-time setup, missing API key, mental model briefing** | `references/getting-started.md` |
+| **Choose right combination of `user` / saveToHistory / systemPrompt** | `references/api-features-deep-dive.md` |
 | Make a basic API call (text in, text out) | `references/api-reference.md` |
 | Pick the right pattern for their use case | `references/use-cases.md` |
 | Get ready-to-paste Python/Node/curl code | `references/code-recipes.md` |
@@ -180,4 +181,4 @@ If `UPDATE_AVAILABLE`, mention it once at the start of your response — **in th
 
 If user asks to update, fetch `https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/INSTALL.md` and re-run the install procedure. (Production note: once `docs.buddypro.ai/skill` redirect is set up, that becomes the user-facing canonical URL — but the install procedure stays the same; only this URL changes.)
 
-*Version: 0.3.2 — see VERSION file*
+*Version: 0.4.0 — see VERSION file*
