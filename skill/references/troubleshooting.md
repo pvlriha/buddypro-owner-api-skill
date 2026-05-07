@@ -1,5 +1,229 @@
-# troubleshooting
+# Troubleshooting
 
-> 🚧 Placeholder — full content coming in Phase 4.
+When something goes wrong with the BuddyPro Owner API, work through this file in order: HTTP-level errors first, then content-level issues, then instance-level problems, then known gotchas.
 
-This reference file will document: troubleshooting.
+🔴 **Always inspect the response body first** — error info is in `error.code` and `error.message`, not just HTTP status. See `api-reference.md` for the HTTP status → error type matrix.
+
+## HTTP-level errors
+
+### 401 `authentication_error` / `invalid_api_key`
+
+**Symptoms:** every call returns 401.
+
+**Causes & fixes:**
+1. `BUDDYPRO_API_KEY` env var not set in current shell — run `echo $BUDDYPRO_API_KEY` to verify. If empty, source the shell profile (`source ~/.zshrc`) or open a new terminal.
+2. Key was invalidated — check in Telegram with `/getApiStats`. If the key isn't listed, it was revoked. Generate a new one.
+3. Key was generated for a different bot — keys are bound to one instance.
+4. Typo when copy-pasting — the key starts with `bapi_` and is alphanumeric. No quotes, no whitespace.
+
+**Quick verify:**
+```bash
+curl -s -X POST https://api.buddypro.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BUDDYPRO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"x_buddy_saveToHistory": false, "messages": [{"role": "user", "content": "ping"}]}' \
+  | jq '.error // "OK"'
+```
+
+### 403 `permission_error` / `insufficient_permissions`
+
+**Symptoms:** key works for normal messages but `/update`, `/messageAllUsers`, etc. return 403.
+
+**Cause:** API key was generated from a non-owner profile (e.g., inside `/test:scenario` mode). Test profiles don't get management permissions.
+
+**Fix:** in Telegram, run `/untest` first, then `/generateApiKey:owner-key`. The new key has full owner permissions.
+
+### 429 `rate_limit_error` / `rate_limit_exceeded`
+
+**Symptoms:** intermittent 429 during batch jobs.
+
+**Cause:** Over 30 requests/minute per API key.
+
+**Fixes:**
+- Add `sleep 2.5` between calls (max 24 req/min, safe under the limit).
+- Use exponential backoff:
+  ```bash
+  for attempt in 1 2 3 4 5; do
+    response=$(curl -s -w "%{http_code}" ...)
+    code=$(echo "$response" | tail -c 4)
+    [ "$code" != "429" ] && break
+    sleep $((2 ** attempt))
+  done
+  ```
+- For real batch processing (>30 items), spread across multiple keys (each key gets its own 30/min budget) or pace over time.
+
+### 400 `invalid_request_error`
+
+Read `error.code` and `error.param`:
+
+| `error.code` | Meaning | Fix |
+|--------------|---------|-----|
+| `invalid_json` | Request body isn't valid JSON | Use a JSON encoder (jq), don't hand-craft escapes |
+| `missing_required_parameter` | `messages` field missing | Add `messages: [{...}]` |
+| `invalid_text_content` | Empty or >50,000 chars | Trim to 50K |
+| `invalid_image_count` | More than 5 images | Reduce to ≤5 |
+| `invalid_audio_format` | Unsupported audio codec | Use mp3/wav/ogg/aac/flac |
+| `invalid_media_data` | Failed to download/decode media | Verify URL is HTTPS public, base64 is clean |
+| `invalid_value` | One field has wrong type/value | `error.param` names the field |
+
+### 5xx `server_error`
+
+Transient. Retry with exponential backoff (3 attempts, 1s/2s/4s). If all 3 fail, the instance backend is having issues — wait and retry later.
+
+### Network / DNS / timeout
+
+Outside HTTP layer:
+- `Could not resolve host: api.buddypro.ai` → DNS issue, check internet
+- `Connection refused` → backend down, check status
+- `SSL handshake failed` → likely firewall/proxy issue, check corporate network rules
+
+## Content-level issues
+
+### "The bot answers nothing useful"
+
+The HTTP call succeeds, but `choices[0].message.content` is generic, evasive, or off-topic.
+
+1. **Check if knowledge is loaded:**
+   ```bash
+   curl -X POST https://api.buddypro.ai/v1/chat/completions \
+     -H "Authorization: Bearer $BUDDYPRO_API_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"messages": [{"role": "user", "content": "/checkSetup"}]}'
+   ```
+   If `/checkSetup` flags missing knowledge or system prompt, fix those first.
+
+2. **Investigate the answer:**
+   ```bash
+   curl -X POST https://api.buddypro.ai/v1/chat/completions \
+     -H "Authorization: Bearer $BUDDYPRO_API_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"messages": [{"role": "user", "content": "/investigateAnswer:specific question"}]}'
+   ```
+   The reply shows the knowhow chunks retrieved + role used. If chunks are missing or irrelevant → knowledge gap (add SOURCES → `/update`). If chunks are good but answer is still bad → system prompt issue.
+
+3. **Check if `/update` ever ran:**
+   New instances need at least one successful `/update` before they have knowledge.
+
+### "Same question gives different answers"
+
+Expected. The bot picks dynamically (role selection from last 3 messages). For consistency:
+- Use stateless mode (`x_buddy_saveToHistory: false`) for evaluation
+- Or use a stable `user` field so the conversation context is consistent
+- Or be more specific in the question (less ambiguity = more stable role activation)
+
+### "The response is in the wrong language"
+
+Bot detects language from user message. To force a language:
+- Include the desired language in the message itself ("Please answer in English: ...")
+- Or use `x_buddy_systemPrompt` with `mode: "add"` and a language directive
+- Or set `/setLanguage:{code}` instance-wide (this controls ADMIN messages only, not user replies)
+
+### "Voice clone reply doesn't sound right"
+
+- Audio sample was too noisy / had multiple speakers / too short → re-do `/createVoiceClone` with cleaner sample
+- Voice clone is enabled per-user via `/useVoiceCloneForMe:true` — verify it's enabled in the right profile
+- Cost cap reached (`/enableVoiceWithMusicGeneration:true:LIMIT`) — bot falls back to text only when budget exhausted
+
+## Instance-level issues
+
+### "Bot was working, now nothing"
+
+1. **Credits exhausted.** Check via `/stats`:
+   ```bash
+   curl -X POST https://api.buddypro.ai/v1/chat/completions \
+     -H "Authorization: Bearer $BUDDYPRO_API_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"messages": [{"role": "user", "content": "/stats"}]}'
+   ```
+   If credit balance is 0 and auto-recharge failed, the AI Expert stops responding. Top up via `/setupCredits`.
+
+2. **`/update` is running.** Long updates (large knowledge bases) can take hours. The bot is still responsive but new content isn't searchable yet.
+
+3. **Instance was disabled.** Rare but possible — check Telegram for any system messages from BuddyPro.
+
+### "Knowledge changes don't take effect"
+
+- Did you run `/update` after editing? Without it, edits are invisible.
+- Wait for `/update` to fully complete. Premature testing shows pre-update behavior.
+- For role-specific changes, also run `/updateRoles` after `/update` finishes.
+- For transcription settings changes, you must delete existing transcriptions to force re-processing.
+
+### "Test profile (`user` field) is polluted with weird memory"
+
+Each `user` value is a separate profile. To reset:
+- Use a different `user` value (e.g., add a date suffix: `customer-42-v2`)
+- Or there's no public API to delete a profile — contact BuddyPro support
+
+## Known gotchas
+
+These are all from real testing and learned the hard way.
+
+| # | Gotcha | Solution |
+|---|--------|----------|
+| 1 | `/test` and `/untest` blocked over API | They're Telegram-only by design — switch profiles in Telegram before generating the API key |
+| 2 | API key from `/test:` profile lacks management permissions | Generate the key from the owner profile (run `/untest` first) |
+| 3 | `/update` returns success quickly but processes for hours | Don't poll faster than every 5 min; bot reports progress every 15 min |
+| 4 | Without `user` field, all calls go to owner profile | Pollutes owner's memory. Use `user` for any non-owner traffic |
+| 5 | Response includes the user message + bot reply, not just bot reply | `choices[0].message.content` IS the bot's reply — that's correct |
+| 6 | Sending past conversation in `messages` array | Server holds history. Send only current message. Otherwise = duplicate context |
+| 7 | `/setDefaultCost` period must be English | Use `months`, `years` — not `měsíc`, `rok`, etc. |
+| 8 | Trial invite code must be exactly 7 chars | `/generateBuddyProInvite:{msgs}:{7CHARCODE}:...` — pad short codes |
+| 9 | `/listInvites` hides codes used by <2 people | Use `/checkInvite:{code}` for fresh codes |
+| 10 | `/messageAllUsers` first param is dryRun | `true` = test, `false` = real send. **Always test with `true` first!** |
+| 11 | `bapi_` keys shown only ONCE | Save immediately on generation. There's no recovery |
+| 12 | Empty knowledge base → bot still responds (with system prompt only) | Generic answers. Run `/update` after uploading content |
+| 13 | Multiple SOURCES with same content | Bot becomes LESS smart, not more. Avoid duplicates |
+| 14 | System prompt with `## Header` markdown | Renders literally to user. Use XML tags + CAPS instead |
+| 15 | `.txt` or `.md` files in SOURCES/TEXTS | Silently ignored. Must be Google Docs |
+| 16 | `URL SOURCES` exists in BOTH `SOURCES/URLS/` and `RAW SOURCES/URLS/` | Use the one in `SOURCES/URLS/` for chunked content |
+| 17 | YouTube videos longer than ~2 hours | Won't process. Split or use podcast transcript |
+| 18 | Vimeo videos | Require Standard plan + access token; usually skip |
+| 19 | Some websites block scraping | Use the YouTube/Vimeo version of the content if available |
+| 20 | `/teach` command in docs | NOT IMPLEMENTED — returns "Command not allowed". Use TEXTS folder instead |
+| 21 | Service account can't upload files to Drive | Edit existing docs or upload from owner's browser |
+| 22 | Service account can't delete some transcriptions | Owner deletes manually in Drive |
+| 23 | `/del` is silent — no confirmation | No response = success |
+| 24 | Audio response without `modalities: ["text", "audio"]` | Won't get TTS. Add the modality |
+| 25 | `audio.voice` field accepted but ignored | Set voice instance-wide via `/setVoice` or voice clone |
+| 26 | `model` field in request body | Accepted but ignored. Owner controls model via `/setModel` |
+| 27 | `usage` token statistics in response | Not returned (BuddyPro doesn't expose this). Don't depend on it |
+| 28 | Streaming requested in body | Not supported yet. Always synchronous response |
+| 29 | Image URL pointing to private/internal IP | Blocked by SSRF protection. Use public HTTPS URL or base64 |
+| 30 | More than 5 images in one request | Returns `invalid_image_count`. Split across requests |
+
+## When all else fails
+
+1. **Capture `x-request-id`** from the response headers and include it in any support request.
+2. **Save the full error response body** for context.
+3. **Check official docs:** `https://docs.buddypro.ai/owner-api/` for the latest endpoint behavior.
+4. **Ask the BuddyPro support channel** — provide request ID, error code, and what you were trying to do.
+
+## Self-test recipe
+
+When everything seems weird, run this end-to-end smoke test:
+```bash
+# 1. Auth
+curl -s -X POST https://api.buddypro.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BUDDYPRO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"x_buddy_saveToHistory": false, "messages": [{"role": "user", "content": "ping"}]}' \
+  | jq '.error.code // "auth-ok"'
+
+# 2. Knowledge present
+curl -s -X POST https://api.buddypro.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BUDDYPRO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"messages": [{"role": "user", "content": "/checkSetup"}]}' \
+  | jq -r '.choices[0].message.content'
+
+# 3. Multi-tenancy works
+curl -s -X POST https://api.buddypro.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BUDDYPRO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"user": "smoke-test-x", "x_buddy_saveToHistory": false, "messages": [{"role": "user", "content": "Hi, I am new"}]}' \
+  | jq -r '.choices[0].message.content'
+```
+
+If all three pass, the integration is healthy.
+
+*Last updated: 2026-05-07 (v0.2.x)*
