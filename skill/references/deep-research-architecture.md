@@ -23,6 +23,8 @@
 | Cross-topology divergence > Strategy B fork divergence | Comparing tests | ✅ EMPIRICAL — topology variance 1-4%, fork variance 1-4% (similar level — combine for max) |
 | Optimal fork count: 3-6 forks × 4-8 turns | Exp B (24 calls budget × 4 configs) | ✅ EMPIRICAL — 6×4 = 6320 words winner, 3×8 = best divergence (3.0%), 12×2 = worst (5128 words, 6.2% sim), 1×24 = mediocre (5353) |
 | MASTER PATTERN: 3 forks × 6 turns × different topology × different role | Exp G | ✅ EMPIRICAL — 18 calls, 6289 words, 349/call, 1.5-2.9% cross-fork sim, 2.8 min wall |
+| Pure role personas (REPLACE mode) constrain output length by ~25% | Exp E | ✅ EMPIRICAL — 246 words/call vs 318-359 for other methods |
+| All 3 dimensions (steering/topology/role) are INDEPENDENTLY effective at ~1-4% sim | All experiments | ✅ EMPIRICAL — no single dominates, combination provides robust signal without going below 1% LLM-stochasticity floor |
 
 
 This file describes a sophisticated multi-branch research system using BuddyPro Owner API as the expert knowledge backend. It goes far beyond a single sequential interview pattern: it uses **parallel branches**, **dynamic branch spawning**, **mixed memory strategies**, and **synthesis with conflict detection** to produce comprehensive research documents.
