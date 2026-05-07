@@ -1,18 +1,21 @@
 {
   "name": "buddypro-owner-api",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Claude Code skill for integrating with BuddyPro Owner API",
   "author": "pvlriha",
   "license": "MIT",
   "files": {
     "skill/SKILL.md": "$HOME/.claude/skills/buddypro-owner-api/SKILL.md",
     "VERSION": "$HOME/.claude/skills/buddypro-owner-api/VERSION",
+    "skill/references/getting-started.md": "$HOME/.claude/skills/buddypro-owner-api/references/getting-started.md",
     "skill/references/api-reference.md": "$HOME/.claude/skills/buddypro-owner-api/references/api-reference.md",
     "skill/references/use-cases.md": "$HOME/.claude/skills/buddypro-owner-api/references/use-cases.md",
     "skill/references/code-recipes.md": "$HOME/.claude/skills/buddypro-owner-api/references/code-recipes.md",
     "skill/references/multi-tenancy.md": "$HOME/.claude/skills/buddypro-owner-api/references/multi-tenancy.md",
     "skill/references/management-commands.md": "$HOME/.claude/skills/buddypro-owner-api/references/management-commands.md",
+    "skill/references/instance-management.md": "$HOME/.claude/skills/buddypro-owner-api/references/instance-management.md",
     "skill/references/troubleshooting.md": "$HOME/.claude/skills/buddypro-owner-api/references/troubleshooting.md",
+    "skill/references/docs-references.md": "$HOME/.claude/skills/buddypro-owner-api/references/docs-references.md",
     "command/buddypro-api.md": "$HOME/.claude/commands/buddypro-api.md"
   },
   "dependencies": {

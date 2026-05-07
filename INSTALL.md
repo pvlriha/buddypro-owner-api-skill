@@ -23,12 +23,15 @@ mkdir -p "$TMP/skill/references" "$TMP/command"
 files=(
   "VERSION:VERSION"
   "skill/SKILL.md:skill/SKILL.md"
+  "skill/references/getting-started.md:skill/references/getting-started.md"
   "skill/references/api-reference.md:skill/references/api-reference.md"
   "skill/references/use-cases.md:skill/references/use-cases.md"
   "skill/references/code-recipes.md:skill/references/code-recipes.md"
   "skill/references/multi-tenancy.md:skill/references/multi-tenancy.md"
   "skill/references/management-commands.md:skill/references/management-commands.md"
+  "skill/references/instance-management.md:skill/references/instance-management.md"
   "skill/references/troubleshooting.md:skill/references/troubleshooting.md"
+  "skill/references/docs-references.md:skill/references/docs-references.md"
   "command/buddypro-api.md:command/buddypro-api.md"
 )
 

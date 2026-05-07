@@ -18,29 +18,39 @@ The user owns a BuddyPro AI instance (a Telegram bot built from their expert kno
 
 This is done via the **Owner API**, an OpenAI-compatible REST endpoint at `https://api.buddypro.ai/v1/chat/completions`.
 
-## Prerequisites — verify before any call
+## On every invocation — run the active onboarding check
 
-🔴 **Communicate in the user's language.** BuddyPro is global (Czech, English, Spanish, German, …). Detect the language from the user's most recent message and respond in that language. The templates below are reference English; translate to whatever the user is speaking.
+🔴 **Communicate in the user's language.** BuddyPro is global (Czech, English, Spanish, German, …). Detect the language from the user's most recent message and respond in that language. Keep technical identifiers (`bapi_`, `BUDDYPRO_API_KEY`, `BUDDYPRO_INSTANCE_TOPIC`, `/generateApiKey`, `/buddypro-api`) verbatim across all languages.
 
-1. **API key.** User must have a `bapi_` key. If `BUDDYPRO_API_KEY` env var is unset, tell user (in their language, EN reference template):
-   > „I need your BuddyPro API key. Open your bot in Telegram, send `/generateApiKey:my-agent`, the bot will reply with a key starting with `bapi_...`. Then save it: `echo 'export BUDDYPRO_API_KEY=\"bapi_...\"' >> ~/.zshrc && source ~/.zshrc`."
+Before doing anything substantive, check the user's onboarding state:
 
-   Wait for confirmation before proceeding. Keep the technical strings (`bapi_`, `BUDDYPRO_API_KEY`, `/generateApiKey`) verbatim across all languages.
+```bash
+# Are env vars set?
+[ -z "$BUDDYPRO_API_KEY" ] && echo "MISSING_API_KEY"
+[ -z "$BUDDYPRO_INSTANCE_TOPIC" ] && echo "MISSING_TOPIC"
+[ ! -f "$HOME/.claude/skills/buddypro-owner-api/.onboarded" ] && echo "MISSING_MENTAL_MODEL_BRIEFING"
 
-2. **`curl` available.** Default on macOS/Linux/Win10+. If missing, instruct user to install it (in their language).
+# `curl` available?
+command -v curl >/dev/null || echo "MISSING_CURL"
+```
 
-3. **Instance is set up.** The bot must have knowledge uploaded and `/update` run at least once. If user asks „why does it answer nothing?" → likely empty knowledge base.
+If anything is missing, **load `references/getting-started.md` first** and walk the user through the relevant onboarding stages before answering their actual question. Don't assume readiness.
+
+If everything is ready, proceed to active-assistant mode (described in `getting-started.md`).
 
 ## Quick reference — load the right file
 
 | User wants to... | Read this file |
 |------------------|----------------|
+| **First-time setup, missing API key, mental model briefing** | `references/getting-started.md` |
 | Make a basic API call (text in, text out) | `references/api-reference.md` |
 | Pick the right pattern for their use case | `references/use-cases.md` |
 | Get ready-to-paste Python/Node/curl code | `references/code-recipes.md` |
 | Serve multiple end-users (SaaS embedding) | `references/multi-tenancy.md` |
 | Run `/update`, `/investigateAnswer:`, etc. via API | `references/management-commands.md` |
+| Manage knowledge / system prompt / voice / roles | `references/instance-management.md` |
 | Debug an error / rate limit / strange response | `references/troubleshooting.md` |
+| Find the right official docs page | `references/docs-references.md` |
 
 ## Core mental model — read this once
 
@@ -124,4 +134,4 @@ If `UPDATE_AVAILABLE`, mention it once at the start of your response — **in th
 
 If user asks to update, fetch `https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/INSTALL.md` and re-run the install procedure. (Production note: once `docs.buddypro.ai/skill` redirect is set up, that becomes the user-facing canonical URL — but the install procedure stays the same; only this URL changes.)
 
-*Version: 0.1.3 — see VERSION file*
+*Version: 0.2.0 — see VERSION file*
