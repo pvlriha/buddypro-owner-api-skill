@@ -605,6 +605,9 @@ def deep_research_single_shot(question):
 
 ### X3 — Multi-step DEEP RESEARCH with the bot as expert brain (POWERFUL)
 
+> 🔗 **For the advanced branch & merge architecture**, see the dedicated sub-skill: [`deep-research-architecture.md`](./deep-research-architecture.md). The X3 pattern below is the simpler sequential version. Use the sub-skill when quality > simplicity.
+
+
 **When:** Owner wants a comprehensive answer/document on a topic. A single call gives a surface answer; this pattern interrogates the bot from 5–15 angles, synthesizes the responses, and produces a polished deliverable in the format the owner wants.
 
 **The flow:**

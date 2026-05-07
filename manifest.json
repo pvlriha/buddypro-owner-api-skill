@@ -1,6 +1,6 @@
 {
   "name": "buddypro-owner-api",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Claude Code skill for integrating with BuddyPro Owner API",
   "author": "pvlriha",
   "license": "MIT",
@@ -10,6 +10,7 @@
     "skill/references/getting-started.md": "$HOME/.claude/skills/buddypro-owner-api/references/getting-started.md",
     "skill/references/api-reference.md": "$HOME/.claude/skills/buddypro-owner-api/references/api-reference.md",
     "skill/references/api-features-deep-dive.md": "$HOME/.claude/skills/buddypro-owner-api/references/api-features-deep-dive.md",
+    "skill/references/deep-research-architecture.md": "$HOME/.claude/skills/buddypro-owner-api/references/deep-research-architecture.md",
     "skill/references/use-cases.md": "$HOME/.claude/skills/buddypro-owner-api/references/use-cases.md",
     "skill/references/code-recipes.md": "$HOME/.claude/skills/buddypro-owner-api/references/code-recipes.md",
     "skill/references/multi-tenancy.md": "$HOME/.claude/skills/buddypro-owner-api/references/multi-tenancy.md",

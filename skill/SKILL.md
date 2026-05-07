@@ -38,12 +38,23 @@ If anything is missing, **load `references/getting-started.md` first** and walk 
 
 If everything is ready, proceed to active-assistant mode (described in `getting-started.md`).
 
+## 🎯 Deep Research detection
+
+Before defaulting to a single API call, check if the user's request actually warrants deep research (multi-step, multi-branch). Triggers for deep research include:
+
+- Explicit: „deep research", „prozkoumej do hloubky", „comprehensive guide on..."
+- Implicit: „use my BuddyPro to write a webinar script", „prepare a launch strategy", „compare 3 frameworks", „extract everything you know about X", „draft a long-form newsletter on..."
+- Context: owner provides a person's URL, product link, or asks for tiered/comparative content
+
+If detected → load `references/deep-research-architecture.md` for the branch & merge architecture (sub-skill). Otherwise → use simpler patterns from `references/use-cases.md`.
+
 ## Quick reference — load the right file
 
 | User wants to... | Read this file |
 |------------------|----------------|
 | **First-time setup, missing API key, mental model briefing** | `references/getting-started.md` |
 | **Choose right combination of `user` / saveToHistory / systemPrompt** | `references/api-features-deep-dive.md` |
+| **Build comprehensive multi-perspective research document (sub-skill)** | `references/deep-research-architecture.md` |
 | Make a basic API call (text in, text out) | `references/api-reference.md` |
 | Pick the right pattern for their use case | `references/use-cases.md` |
 | Get ready-to-paste Python/Node/curl code | `references/code-recipes.md` |
@@ -181,4 +192,4 @@ If `UPDATE_AVAILABLE`, mention it once at the start of your response — **in th
 
 If user asks to update, fetch `https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/INSTALL.md` and re-run the install procedure. (Production note: once `docs.buddypro.ai/skill` redirect is set up, that becomes the user-facing canonical URL — but the install procedure stays the same; only this URL changes.)
 
-*Version: 0.6.0 — see VERSION file*
+*Version: 0.7.0 — see VERSION file*
