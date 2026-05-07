@@ -1,5 +1,25 @@
 # Deep Research Architecture — Branch & Merge System
 
+> **Empirical foundation:** This architecture is grounded in 7-test validation suite (130+ live API calls on Pavel Říha AI instance, 2026-05-07, 61.4 min total runtime). Key findings are tagged ✅ EMPIRICAL when validated, 📐 ARCHITECTURAL when derived from BuddyPro's LLM+RAG pipeline, 🟡 HYPOTHESIS when not yet tested.
+
+## 📊 Validated empirical findings (2026-05-07)
+
+| Finding | Source | Status |
+|---------|--------|--------|
+| Type A 12 turns NO saturation, ~334 words/turn | Test 1 (12 turns coaching pricing) | ✅ EMPIRICAL |
+| Type C 10 profiles, 5.5% textual sim BUT 90% semantic redundancy | Test 2 | ✅ EMPIRICAL |
+| Comparative shape: HIGHEST textual sim (14.4% vs canonical 5.9%) — structural constraint | Test 3 | ✅ EMPIRICAL counterintuitive |
+| Phase 2 broad probe: 8 angles → 3.1-3.6% cross-angle sim → genuinely different | Tests 4, 6 | ✅ EMPIRICAL |
+| Phase 4 deep dive: ~3-4% adjacent sim across 4-6 turns → no saturation | Tests 4, 6 | ✅ EMPIRICAL |
+| Branch fork (Track B) produces +30% MORE words than continued chat | Test 5 | ✅ EMPIRICAL |
+| Forks: 3.2-5.4% cross-track sim → genuinely divergent content | Test 5 | ✅ EMPIRICAL |
+| ADD prompt eliminates preamble (sim 13.5% → 7.0%) | Test 7 | ✅ EMPIRICAL |
+| REPLACE prompt constrains length ~17% (315 → 262 words) | Test 7 | ✅ EMPIRICAL |
+| Diacritic chars in `user` field → 400 Bad Request | Test 4 anomaly | ✅ EMPIRICAL |
+| 50-turn Type A still produces novel content | Pavel's claim | 🟡 NOT YET TESTED |
+| Topology pattern affects retrieval breadth | Architectural derivation | 🟡 NOT YET TESTED |
+
+
 This file describes a sophisticated multi-branch research system using BuddyPro Owner API as the expert knowledge backend. It goes far beyond a single sequential interview pattern: it uses **parallel branches**, **dynamic branch spawning**, **mixed memory strategies**, and **synthesis with conflict detection** to produce comprehensive research documents.
 
 For the simpler single-bot sequential pattern, see Pattern X3 in [`use-cases.md`](./use-cases.md). This file is the advanced architecture for when quality and depth matter most.

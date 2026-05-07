@@ -1,6 +1,6 @@
 {
   "name": "buddypro-owner-api",
-  "version": "0.7.10",
+  "version": "0.8.0",
   "description": "Claude Code skill for integrating with BuddyPro Owner API",
   "author": "pvlriha",
   "license": "MIT",
