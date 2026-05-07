@@ -587,14 +587,14 @@ def draft_social_post(topic, platform="twitter"):
     })
 ```
 
-### X2 — Deep research / market intelligence
+### X2 — Single-shot deep research / market intelligence
 
-**When:** Owner wants the bot to synthesize known knowledge with a new question (competitive analysis, trend report, opportunity scan).
+**When:** Owner wants the bot to synthesize known knowledge with a new question in ONE call (competitive analysis, trend report, opportunity scan).
 
 **Setup:** Stateless (or fresh user) — single deep query. Often combined with `x_buddy_systemPrompt` for output format (executive summary, structured report).
 
 ```python
-def deep_research(question):
+def deep_research_single_shot(question):
     return call_buddypro({
         "x_buddy_saveToHistory": False,
         "x_buddy_systemPrompt": "## OUTPUT FORMAT\n## Executive Summary (3 sentences)\n## Key Insights (3-5 bullet points)\n## Recommendations (numbered actions)\n## Sources/Frameworks Used",
@@ -602,6 +602,122 @@ def deep_research(question):
         "messages": [{"role": "user", "content": question}],
     })
 ```
+
+### X3 — Multi-step DEEP RESEARCH with the bot as expert brain (POWERFUL)
+
+**When:** Owner wants a comprehensive answer/document on a topic. A single call gives a surface answer; this pattern interrogates the bot from 5–15 angles, synthesizes the responses, and produces a polished deliverable in the format the owner wants.
+
+**The flow:**
+
+```
+Owner: "Research X in your knowledge base — make me a comprehensive document"
+                          ↓
+Step 1: PLANNING — Claude Code decomposes topic into 5-10 angles
+                          ↓
+Step 2: INTERVIEW LOOP — for each angle, ask BuddyPro (via Owner API):
+        - Same `user` field (one stable session) — bot accumulates context
+        - Each call adds to bot's memory of this research session
+        - Loop: question → answer → next question → ...
+                          ↓
+Step 3: GAP CHECK — Claude Code reviews collected answers, asks follow-ups
+        for thin areas, asks for examples/frameworks where missing
+                          ↓
+Step 4: SYNTHESIS — Claude Code (NOT BuddyPro) assembles the document
+        from collected answers, in the format the owner specified
+                          ↓
+Step 5: REFINEMENT — owner says „make it shorter / add a section / change tone"
+        → Claude Code edits the document. May ask BuddyPro for additional
+        material if the edit needs new content.
+```
+
+**Why a single API call won't do this:** A one-shot query returns 1–2 KB of answer. To produce a 5-page polished document grounded in the bot's full knowledge, you need to extract knowledge across many micro-questions and let the bot's role-selection cycle through different specializations.
+
+**Setup:**
+- One stable `user` field for the session (e.g., `research-{topic-slug}-{timestamp}`)
+- Default `saveToHistory: true` — context accumulates as the research progresses
+- Optional `x_buddy_systemPrompt` for output framing on each call
+- Use `/investigateAnswer:` for some calls to also get knowledge chunks visibility
+
+**Code skeleton:**
+
+```python
+import os, time, requests, json
+
+def call_bp(user, message, system_prompt=None):
+    payload = {"user": user, "messages": [{"role": "user", "content": message}]}
+    if system_prompt:
+        payload["x_buddy_systemPrompt"] = system_prompt
+        payload["x_buddy_systemPromptMode"] = "add"
+    r = requests.post(
+        "https://api.buddypro.ai/v1/chat/completions",
+        headers={"Authorization": f"Bearer {os.environ['BUDDYPRO_API_KEY']}",
+                 "Content-Type": "application/json"},
+        json=payload, timeout=120,
+    )
+    r.raise_for_status()
+    time.sleep(3)  # rate-limit friendly
+    return r.json()["choices"][0]["message"]["content"]
+
+def deep_research(topic: str, output_format: str = "markdown report") -> str:
+    session_user = f"research-{topic.replace(' ', '-').lower()}-{int(time.time())}"
+    answers = {}
+
+    # STEP 1 — Planning (Claude Code generates angles, OR ask the bot)
+    angles_response = call_bp(
+        session_user,
+        f"I want to research '{topic}' deeply. List 8 distinct angles I should "
+        f"explore — different perspectives, audiences, situations, frameworks "
+        f"that apply. Format: numbered list, one line per angle."
+    )
+    angles = [line.split('. ', 1)[1] for line in angles_response.split('\n')
+              if line.strip() and line.strip()[0].isdigit()][:8]
+
+    # STEP 2 — Interview loop
+    for angle in angles:
+        question = f"Now go deep on this angle: {angle}. Give me your most useful insights, frameworks, examples. 200-400 words."
+        answers[angle] = call_bp(session_user, question)
+
+    # STEP 3 — Gap check (Claude Code reviews, asks follow-ups)
+    review_prompt = (
+        f"Here's what we have so far on '{topic}':\n\n" +
+        "\n\n".join(f"### {a}\n{ans[:500]}..." for a, ans in answers.items()) +
+        "\n\nWhat 2 critical questions are STILL unanswered that would make "
+        "this complete? List them."
+    )
+    gaps = call_bp(session_user, review_prompt).split('\n')[:2]
+
+    for gap in gaps:
+        if gap.strip():
+            answers[f"GAP: {gap[:50]}"] = call_bp(session_user, gap)
+
+    # STEP 4 — Synthesis (Claude Code uses an LLM to weave the document)
+    # This is where Claude Code (not BuddyPro) does the writing.
+    # In Claude Code itself, this is your own reasoning — produce the
+    # markdown using the collected answers as source material.
+
+    return synthesize_document(topic, answers, output_format)
+```
+
+**Notes:**
+- **Same `user` field across calls** = bot accumulates context. Each subsequent answer is informed by previous Q&A in the session.
+- **8 angles is a good default**, but adjust per topic complexity. Simple topic → 4 angles. Complex strategy → 12+ angles.
+- **Gap check is critical** — without it, you get unevenly deep coverage. The bot itself can identify gaps when you show it the collected so far.
+- **Synthesis happens in Claude Code, not BuddyPro.** BuddyPro is the source of expert knowledge; Claude Code is the writer that weaves it into the final format.
+- **Sleep between calls** — 30 req/min limit is real. 3s gap = safely under.
+- **Memory hygiene:** the research session creates a profile. If owner doesn't want it kept, after the research is done they can let it expire (no API to delete profiles publicly).
+
+**Refinement loop (Step 5):** When owner says „shorten this section / add example / change tone":
+- For lightweight edits (cut, reorder, reword) → Claude Code edits without calling bot
+- For new content needed (more examples, a missing framework) → call bot with `user: session_user` (still in session memory), get the new content, weave in
+
+**Inspiration:** This pattern is a single-bot adaptation of the multi-party orchestrator in `claude-buddy-connection` (which uses Telethon). For Owner-API-only deployments (no Telethon dependency), this single-bot deep research pattern delivers most of the value with much simpler infrastructure.
+
+**Privacy / cost:**
+- ~10 calls per research session × $0.05 average = ~$0.50/session
+- Memory accumulates in the `user` profile — visible to owner, fine for owner's own research
+- For privacy-sensitive topics: use `x_buddy_saveToHistory: false` per call AND fresh `user` per call → no continuity but also no record (each call is a clean slate, less powerful for deep work)
+
+**Code recipe:** `code-recipes.md` → Pattern 8 (full deep research implementation with output format templates).
 
 ## Decision flowchart — pick the right pattern
 
@@ -638,7 +754,9 @@ Who is the user of the bot?
 │       └─ Backend for autonomous agent? → D4
 │
 └─ Cross-cutting — content/research/automation
-    └─ X1 (content gen) or X2 (deep research)
+    ├─ Single-shot content generation? → X1
+    ├─ One-call deep query (5-min answer)? → X2
+    └─ Comprehensive research → polished document? → X3 (multi-step deep research)
 ```
 
 ## Combining patterns

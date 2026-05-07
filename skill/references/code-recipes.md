@@ -423,6 +423,326 @@ rm "$OUTPUT"
 
 ---
 
+## Pattern 8 — Multi-step Deep Research (the powerful pattern)
+
+Goal: extract a comprehensive document from the bot's knowledge base across many angles, with gap-check and synthesis. Inspired by `claude-buddy-connection` orchestrator, adapted for Owner-API-only.
+
+### Python — full implementation
+
+```python
+import os, time, json, requests
+from typing import Dict, List
+
+API_URL = "https://api.buddypro.ai/v1/chat/completions"
+RATE_LIMIT_SLEEP = 3.0  # 30/min limit, 3s = safe ~20/min
+
+def call_buddypro(user: str, message: str, system_prompt: str = None, stateless: bool = False) -> str:
+    payload = {"user": user, "messages": [{"role": "user", "content": message}]}
+    if system_prompt:
+        payload["x_buddy_systemPrompt"] = system_prompt
+        payload["x_buddy_systemPromptMode"] = "add"
+    if stateless:
+        payload["x_buddy_saveToHistory"] = False
+    
+    r = requests.post(
+        API_URL,
+        headers={"Authorization": f"Bearer {os.environ['BUDDYPRO_API_KEY']}",
+                 "Content-Type": "application/json"},
+        json=payload,
+        timeout=120,
+    )
+    r.raise_for_status()
+    time.sleep(RATE_LIMIT_SLEEP)
+    return r.json()["choices"][0]["message"]["content"]
+
+
+# ============================================================
+# STEP 1 — Planning: get research angles from the bot
+# ============================================================
+def plan_angles(session_user: str, topic: str, depth: int = 8) -> List[str]:
+    """Ask the bot to identify N angles to research."""
+    response = call_buddypro(
+        session_user,
+        f"""I want to deeply research the topic: "{topic}"
+
+List exactly {depth} DISTINCT angles I should explore. Each should cover a different:
+- Perspective (beginner vs advanced, owner vs customer, strategic vs tactical)
+- Time horizon (immediate vs long-term)
+- Stakeholder (who benefits, who pushes back)
+- Framework or methodology applicable
+- Failure mode to anticipate
+
+Output: numbered list, ONE line per angle, no extra prose.""",
+        system_prompt="You are now in research-planning mode. Be comprehensive but focused."
+    )
+    
+    # Parse numbered list
+    angles = []
+    for line in response.split('\n'):
+        line = line.strip()
+        if line and line[0].isdigit():
+            # Strip "1. " or "1) " prefix
+            content = line.split('.', 1)[-1].split(')', 1)[-1].strip()
+            if content:
+                angles.append(content)
+    
+    return angles[:depth]
+
+
+# ============================================================
+# STEP 2 — Interview loop: deep on each angle
+# ============================================================
+def interview_angles(session_user: str, topic: str, angles: List[str]) -> Dict[str, str]:
+    """For each angle, get deep insights from the bot."""
+    answers = {}
+    
+    for i, angle in enumerate(angles, 1):
+        print(f"  [{i}/{len(angles)}] {angle[:60]}...")
+        
+        question = f"""Topic context: '{topic}'
+
+Now go deep on THIS specific angle: {angle}
+
+Provide:
+- Your strongest insight on this angle (the thing most people miss)
+- A specific framework or method you'd use
+- ONE concrete example or case
+- ONE common mistake to avoid
+
+Length: 200-400 words. Direct, no fluff."""
+        
+        answers[angle] = call_buddypro(session_user, question)
+    
+    return answers
+
+
+# ============================================================
+# STEP 3 — Gap check: find missing pieces
+# ============================================================
+def find_gaps(session_user: str, topic: str, current_answers: Dict[str, str], max_gaps: int = 3) -> List[str]:
+    """Show the bot what we've collected, ask what's missing."""
+    summary = "\n\n".join(
+        f"### {angle}\n{answer[:300]}..."
+        for angle, answer in current_answers.items()
+    )
+    
+    response = call_buddypro(
+        session_user,
+        f"""Topic: '{topic}'
+
+Here's the research collected so far:
+
+{summary}
+
+What {max_gaps} CRITICAL questions remain unanswered that would prevent this from being a complete reference document? 
+
+For each gap:
+- Phrase it as a specific question
+- Explain in one line WHY it matters
+
+Output: numbered list of {max_gaps} gaps."""
+    )
+    
+    gaps = []
+    for line in response.split('\n'):
+        line = line.strip()
+        if line and line[0].isdigit():
+            gaps.append(line.split('.', 1)[-1].strip())
+    return gaps[:max_gaps]
+
+
+# ============================================================
+# STEP 4 — Fill gaps: ask the bot the gap questions
+# ============================================================
+def fill_gaps(session_user: str, gaps: List[str]) -> Dict[str, str]:
+    """Get answers to gap questions."""
+    gap_answers = {}
+    for gap in gaps:
+        gap_answers[gap] = call_buddypro(session_user, gap)
+    return gap_answers
+
+
+# ============================================================
+# STEP 5 — Synthesis: weave the document
+# ============================================================
+def synthesize_document(topic: str, all_answers: Dict[str, str], output_format: str = "markdown_report") -> str:
+    """
+    Claude Code (or another LLM) does the synthesis.
+    BuddyPro provides the raw knowledge; the writing is done elsewhere.
+    
+    For use INSIDE Claude Code: when this function is called, you (Claude Code)
+    write the document yourself using all_answers as source material, in the
+    format specified.
+    """
+    # In a real Claude Code skill execution, this is where you would
+    # produce the final document using your own writing capability,
+    # using `all_answers` as the source-of-truth knowledge.
+    # 
+    # For external Python automation, you'd call another LLM here.
+    
+    if output_format == "markdown_report":
+        return synthesize_as_markdown_report(topic, all_answers)
+    elif output_format == "executive_brief":
+        return synthesize_as_executive_brief(topic, all_answers)
+    elif output_format == "blog_post":
+        return synthesize_as_blog_post(topic, all_answers)
+    elif output_format == "structured_json":
+        return json.dumps({"topic": topic, "research": all_answers}, indent=2, ensure_ascii=False)
+    else:
+        raise ValueError(f"Unknown format: {output_format}")
+
+
+def synthesize_as_markdown_report(topic: str, answers: Dict[str, str]) -> str:
+    """Default format: structured report with sections per angle."""
+    md = f"# {topic} — Research Report\n\n"
+    md += f"_Generated from {len(answers)} research angles via deep-research pattern._\n\n"
+    md += "## Executive Summary\n\n"
+    md += "[Claude Code: write 3-5 sentence summary distilling the key insight across all angles]\n\n"
+    md += "## Detailed Findings\n\n"
+    for angle, content in answers.items():
+        md += f"### {angle}\n\n{content}\n\n"
+    md += "## Synthesis & Recommendations\n\n"
+    md += "[Claude Code: integrate the angles into 3-5 unified recommendations]\n"
+    return md
+
+
+# ============================================================
+# ORCHESTRATOR: full deep research pipeline
+# ============================================================
+def deep_research(topic: str, depth: int = 8, output_format: str = "markdown_report") -> str:
+    """
+    Run a complete deep research pipeline.
+    
+    Args:
+        topic: research topic, e.g. "pricing strategy for SaaS coaching"
+        depth: how many angles to research (4-12 recommended)
+        output_format: "markdown_report" | "executive_brief" | "blog_post" | "structured_json"
+    
+    Returns:
+        Final document as a string.
+    """
+    session_user = f"research-{topic.replace(' ', '-').lower()[:40]}-{int(time.time())}"
+    
+    print(f"\n=== Deep Research: {topic} ===")
+    print(f"Session: {session_user}\n")
+    
+    print("Step 1/4: Planning angles...")
+    angles = plan_angles(session_user, topic, depth)
+    print(f"  → {len(angles)} angles identified\n")
+    
+    print("Step 2/4: Interviewing each angle...")
+    answers = interview_angles(session_user, topic, angles)
+    print(f"  → {len(answers)} angles answered\n")
+    
+    print("Step 3/4: Gap check...")
+    gaps = find_gaps(session_user, topic, answers, max_gaps=3)
+    print(f"  → {len(gaps)} gaps found")
+    if gaps:
+        gap_answers = fill_gaps(session_user, gaps)
+        for q, a in gap_answers.items():
+            answers[f"FOLLOW-UP: {q}"] = a
+        print(f"  → {len(gap_answers)} gaps filled\n")
+    
+    print("Step 4/4: Synthesis...")
+    document = synthesize_document(topic, answers, output_format)
+    print(f"  → Document ready: {len(document)} chars\n")
+    
+    return document
+
+
+# ============================================================
+# REFINEMENT: edit document based on owner feedback
+# ============================================================
+def refine_document(session_user: str, current_document: str, owner_feedback: str) -> str:
+    """
+    When owner says "make it shorter / add example / change tone":
+    - Lightweight edits → Claude Code edits directly
+    - New content needed → call BuddyPro for additional material in same session
+    
+    This function shows the API call for getting new content. The document
+    weaving is done by Claude Code.
+    """
+    if "more example" in owner_feedback.lower() or "add" in owner_feedback.lower():
+        # Need new content from the bot
+        new_content = call_buddypro(
+            session_user,
+            f"In our research session, owner now wants: {owner_feedback}. "
+            f"Provide 200 words of new content matching this request."
+        )
+        return new_content  # Claude Code weaves into the document
+    else:
+        # Lightweight edit — Claude Code does it directly, no bot call
+        return None  # Signal: edit yourself, don't call bot
+
+
+# ============================================================
+# Usage
+# ============================================================
+if __name__ == "__main__":
+    document = deep_research(
+        topic="SaaS pricing strategy for solo founders",
+        depth=8,
+        output_format="markdown_report",
+    )
+    
+    with open("research-output.md", "w") as f:
+        f.write(document)
+    print("Saved to research-output.md")
+```
+
+### Output format templates
+
+```python
+def synthesize_as_executive_brief(topic, answers):
+    """Format: 1-page exec brief with 3-bullet takeaways per section."""
+    return f"""# {topic} — Executive Brief
+
+## TL;DR
+[Claude Code: 3 sentences max]
+
+## Key Takeaways
+{chr(10).join('- [extract 1-line insight from each]' for _ in answers)}
+
+## Recommended Actions
+1. [most impactful action]
+2. [secondary action]
+3. [defensive/exploration action]
+
+## Reference Material
+{chr(10).join(f'**{a}** — [1-sentence summary]' for a in answers)}
+"""
+
+
+def synthesize_as_blog_post(topic, answers):
+    """Format: long-form article, sections flow into narrative."""
+    return f"""# {topic}
+
+[Claude Code: write a hook paragraph that draws the reader in]
+
+[Body sections — weave the angles into coherent narrative, 3-5 sections]
+
+[Closing call to action]
+"""
+```
+
+### Why this works for non-tech owners
+
+The owner doesn't run the Python — Claude Code runs it for them. They say in natural language:
+
+> *„Research my pricing strategy across all my knowledge — make me a 5-section markdown report with frameworks, examples, and 3 recommendations."*
+
+Claude Code interprets this as:
+- topic = „pricing strategy"
+- output_format = „markdown_report"
+- depth = ~8 angles
+- Specific format requirements → embedded in synthesize step
+
+Then runs the pipeline (~30s for 8 angles × 3s each + planning + gap check + synthesis), and gives the owner the polished document.
+
+**Total cost:** ~$0.50/research session at $0.05/call × 10 calls average. **Total time:** ~30-40 seconds.
+
+---
+
 ## Production helpers
 
 ### Retry with exponential backoff (Python)
