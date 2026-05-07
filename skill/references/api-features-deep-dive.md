@@ -331,6 +331,51 @@ What does the user want to do?
     └─ Optionally: fresh `user` per call (no profile created)
 ```
 
+## Custom prompt persistence — PER-CALL ONLY
+
+🔴 **Critical empirical finding:** `x_buddy_systemPrompt` is **per-call only** — it does NOT persist into the user's profile or future calls.
+
+Verified behavior (live tests on Pavel Říha AI, 2026-05-07):
+
+| Test | Setup | Result |
+|------|-------|--------|
+| D1 | Turn 1 with long beginner-friendly prompt → Turn 2 same user, NO prompt | Turn 2 returned to **base instance persona**. The custom prompt did NOT carry over. |
+| D2 | Same user — Turn 1 playful prompt, Turn 2 formal prompt, Turn 3 no prompt | **Each call applied ONLY its own prompt.** No prompt drift. T3 = base persona. |
+
+**What persists vs what doesn't:**
+
+| Persists across calls (same `user`) | Does NOT persist |
+|-------------------------------------|------------------|
+| Conversation content (what user said) | Custom system prompt |
+| Bot's responses (what bot said) | Custom prompt mode (replace/add) |
+| Long-term memory (about user, topics) | One-shot persona overrides |
+| User profile data | Format constraints |
+
+**Implication for the skill:** if you want user X to have a consistent custom persona across many calls, you MUST send the same `x_buddy_systemPrompt` on every call. There is no „set once and forget" persona binding.
+
+If you want to give user X a permanently different persona, the right place is the **instance's customSystemPrompt** in Drive (`SYSTEM PROMPT` doc) — but that affects ALL users, not just X. For per-user personas, you must include the prompt in every call.
+
+## Format compliance reality check
+
+🔴 **Strict structured output (JSON, exact word counts) is unreliable** even with detailed prompts.
+
+Tested patterns that **frequently fail compliance:**
+
+| Constraint | Behavior |
+|------------|----------|
+| „Respond ONLY with JSON, no prose" | Sometimes returns plain text, sometimes JSON. ~50% reliable. |
+| „Answer in EXACTLY 5 words" | Returns 8-14 words despite explicit rule. Treats as preference. |
+| „Under 30 words" | Returns 25-50 words. Bot interprets loosely. |
+| „Always end with [TAG]" | More reliable (~80%) but still occasionally drops the tag. |
+
+**Why:** Layer 1 (BuddyPro core) is optimized for personality, conversation style, and contextual response — not for deterministic format compliance. The bot tends to view your format rules as „strong preferences" rather than absolute constraints.
+
+**Workarounds:**
+1. **Don't use BuddyPro for strict structured output.** Use stock OpenAI/Anthropic API for JSON, structured data extraction, parsing tasks.
+2. **Post-process responses** programmatically — strip emoji, extract JSON from code-fences, truncate to N words.
+3. **Combine `replace` + long detailed prompt + `saveToHistory: false`** for the highest compliance odds, but still expect ~70-80% success rate.
+4. **Make the constraint extreme and repeated** — five times in the prompt: „RESPOND IN ONE WORD. JUST ONE. ONE WORD ONLY. ONE WORD." — sometimes works.
+
 ## Critical reminders
 
 1. **Knowledge base is always Layer 1.** Custom prompts can frame, but cannot replace, the bot's domain knowledge.
@@ -339,7 +384,7 @@ What does the user want to do?
 
 3. **`add` mode (default) appends** API prompt to instance prompt with `\n\n` separator. Both end up inside `<CUSTOMIZED-INSTANCE>` tag.
 
-4. **`saveToHistory: false` blocks WRITE only** — reads (history, KB retrieval) still happen.
+4. **`saveToHistory: false` blocks WRITE only** — reads (history, KB retrieval) still happen. Stateless calls TO existing user STILL see prior memory.
 
 5. **`user` field amplifies custom prompt effectiveness** — bot tends to comply more with custom instructions when `user` is set vs. when targeting owner profile.
 
@@ -347,9 +392,15 @@ What does the user want to do?
 
 7. **Long prompts > short prompts** for `replace` mode. Layer 1 is large; a tiny custom prompt gets diluted.
 
+8. **Custom prompts are per-call only** — no automatic persistence. For consistent persona across many calls, send the prompt every time.
+
+9. **Strict format compliance is unreliable** — for JSON or exact-word-count outputs, use stock LLM APIs, not BuddyPro.
+
+10. **Stateless + same user reads existing memory.** It only blocks writes. Use a fresh `user` value per call if you need TRUE memory isolation.
+
 ## Source
 
 - Verified against `buddy-fm/buddy` source (current as of search): `telegram/Utils/BuddyApiRuntimeUtils.ts`, `telegram/Modules/BuddyPro/PROMPTS_AND_MANUALS.ts`, `telegram/API/BuddyApi/endpoints/V1OpenaiLike.ts`, `telegram/docs/BuddyApi/BuddyAPIOpenAILikeV1.md`
 - Live empirical experiments on Pavel Říha AI instance (2026-05-07) — see git history for individual test results
 
-*Last updated: 2026-05-07 (v0.4.0)*
+*Last updated: 2026-05-07 (v0.4.1)*
