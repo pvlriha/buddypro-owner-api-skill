@@ -460,14 +460,43 @@ Last-3-message role selection means topic evolution → automatic role switching
 
 Long Type A naturally explores multiple roles' worth of knowledge. **Don't fight this, leverage it.**
 
-**5. Question SHAPE determines retrieval breadth**
-- Canonical („Jak X funguje?") → narrow retrieval
-- Open („Jaké přístupy k X?") → broader retrieval
-- Comparative („X vs Y") → chunks for both
-- Specific („Konkrétní příklad") → case-study chunks
+**5. Question SHAPE determines retrieval breadth — but textual similarity ≠ retrieval breadth**
+
+Initial hypothesis: open-ended retrieves broader → more variance.
+
+**Empirically falsified (Test 3, 2026-05-07):**
+
+| Shape | Avg textual similarity (5 profiles) |
+|-------|-------------------------------------|
+| Canonical („Jak X funguje?") | 5.9% |
+| Open-ended („Jaké přístupy k X existují?") | 7.7% |
+| Comparative („X vs Y vs Z") | **14.4%** (highest) |
+
+Counterintuitive at first, but architecturally correct:
+
+**LLM+RAG has 2 sources of variance:**
+- RAG retrieval (deterministic per query → low variance)
+- LLM formulation (stochastic → variable, depends on freedom)
+
+**Comparative questions IMPOSE STRUCTURE** („compare A, B, C") → LLM has LESS formulation freedom → HIGHER textual similarity.
+
+**Canonical/open questions allow free-flowing prose** → LLM has formulation freedom → LOW textual similarity.
+
+**Meta-lesson:** Textual similarity measures **LLM formulation freedom**, NOT retrieval breadth. Don't use textual similarity as a proxy for content diversity.
+
+For real semantic variance:
+- Use semantic content analysis (keyword extraction across answers — see Test 2 method)
+- OR use Strategy B (steered forks) — context-divergent retrieval is structural
+- OR use Strategy C (lens rotation via Type D) — explicit reframing forces diversity
+
+**Practical retrieval strategies:**
+- Canonical → same chunks every time
+- Open-ended → similar chunks (may include slightly more chunks because „kolik škol existuje" is meta)
+- Comparative → chunks for each compared item, but structured response
+- Specific („Konkrétní příklad") → case-study chunks (genuinely different from broad)
 - Meta („Co je nejdůležitější o X") → consolidation chunks
 
-Within ONE Type A chain, ROTATE shapes to expand retrieval diversity per turn.
+Within ONE Type A chain, **ROTATE shapes** to expand retrieval diversity per turn — but understand that variance comes from RETRIEVAL DIFFERENCES, not from textual similarity drops.
 
 **6. Branch fork ≠ Type C parallel**
 Main chat's accumulated context biases retrieval toward sub-topic 1.
