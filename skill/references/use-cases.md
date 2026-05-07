@@ -575,7 +575,15 @@ def agent_consults_expert(task_context, specific_question, agent_id):
 - **Blog article research + draft** — bot does research call (deep query) then drafts in voice.
 - **YouTube video script** — bot drafts hook, structure, key talking points.
 
-**Setup:** Usually stateless (`saveToHistory: false`) per task. Custom system prompt for output format. No `user` field (owner-only workflow).
+**Sub-patterns (advanced — require deep research from `deep-research-architecture.md`):**
+
+- **X1a — Social media content plan with history** — owner asks for next 30 days of posts. Skill must: (1) fetch/inject owner's recent posts (last 30-60 from X/Instagram/LinkedIn) as context, (2) deep research on the topic to identify themes the owner hasn't covered yet, (3) generate post calendar avoiding repetition. Combines context injection + deep research.
+
+- **X1b — Infographic content blueprint** — owner asks for an infographic on topic X. Skill: (1) deep research on X (~15 calls, depth-focused), (2) extract 5-7 most visualizable insights with concrete numbers/comparisons, (3) structure as infographic blueprint (title, 5-7 sections, visual metaphor suggestions, data points). The actual image generation is done by another tool (e.g., GPT-Image 2 / Nano Banana).
+
+- **X1c — Instagram carousel slides (10-slide deck)** — owner asks for an Instagram carousel on topic X. Skill: (1) deep research on X, (2) structure into 10-slide narrative (hook → 7 insight slides → recap → CTA), (3) per slide: 30-50 words copy + visual cue suggestion. Output: markdown table ready for design tool.
+
+**Setup:** Usually stateless (`saveToHistory: false`) per task. Custom system prompt for output format. No `user` field (owner-only workflow). For X1a/X1b/X1c — invoke deep research first, then format-shape the output.
 
 ```python
 def draft_social_post(topic, platform="twitter"):

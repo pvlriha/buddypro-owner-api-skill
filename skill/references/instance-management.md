@@ -329,6 +329,123 @@ Bot doesn't respond at all
   └─ Check /stats (credits) → /checkSetup (config) → instance may be paused
 ```
 
+## 🔗 Google Drive integration (when MCP / CLI / API is available)
+
+Many Claude Code installations have a **Google Drive MCP server** or other tooling that gives the agent direct access to Drive folders. When this is available, the skill should leverage it for dramatically better instance understanding.
+
+### Why Drive access matters
+
+**Without Drive access:** the skill knows the bot exists, can call its API, but doesn't know:
+- The exact instance system prompt (its persona, voice rules, frameworks)
+- What knowledge sources are uploaded
+- The role definitions and current onboarding messages
+
+**With Drive access:** the skill can:
+- Read the `SYSTEM PROMPT` doc → understand exactly how the bot is supposed to behave
+- Predict the bot's likely framing of any question
+- Reference specific frameworks/principles by name when constructing prompts (custom system prompts that ALIGN with instance prompt are far more effective)
+- Help owner edit settings directly (system prompt edits, onboarding tweaks, transcription settings)
+- Audit the knowledge base structure (what's in SOURCES vs RAW SOURCES, how complete coverage is)
+
+### Detection
+
+Check if the agent has Google Drive access:
+
+```bash
+# Common Drive MCP / CLI signatures to check
+which gdrive 2>/dev/null
+ls ~/.config/claude-code/mcp-servers.json 2>/dev/null | grep -i drive
+
+# In Claude Code: check available MCP tools matching gdrive*, gsheets*, gdocs*
+```
+
+If the agent has `mcp__gdrive__*` tools, `mcp__google-drive__*`, or similar — Drive integration is available.
+
+### Finding the BuddyPro folder
+
+The agent knows:
+1. **The instance topic** (`$BUDDYPRO_INSTANCE_TOPIC` env var or asked from owner)
+2. **The standard BuddyPro folder structure** (see "Drive folder structure" earlier in this file)
+
+To locate the folder:
+
+```python
+# Pseudo — adapt to actual MCP/API
+folders = drive_search_folders(name_contains=instance_topic_keywords)
+
+# Filter for BuddyPro structure (must contain SOURCES/, ROLES/, SYSTEM PROMPT)
+for folder in folders:
+    children = drive_list(folder.id)
+    has_sources = any(c.name == "SOURCES" for c in children)
+    has_roles = any(c.name == "ROLES" for c in children)
+    has_system_prompt_doc = any("SYSTEM PROMPT" in c.name for c in children)
+    if has_sources and has_roles and has_system_prompt_doc:
+        return folder  # Found the BuddyPro instance folder
+```
+
+If owner doesn't know the folder name, ask: *„Můžu se podívat do tvého Google Drive a najít BuddyPro složku tvojí instance? Hledám složku s podsložkami SOURCES/ a ROLES/ a dokumentem SYSTEM PROMPT."*
+
+### Reading the system prompt (highest-value action)
+
+Once the folder is found:
+
+```python
+system_prompt_doc_id = find_doc(folder, name="SYSTEM PROMPT")
+system_prompt_content = drive_read_doc(system_prompt_doc_id)
+```
+
+The system prompt typically has 9 XML-tagged sections (`<IDENTITY>`, `<VOICE-RULES>`, `<RESPONSE-PATTERN>`, etc.). Parse and absorb. Now the skill knows EXACTLY how the bot is supposed to behave.
+
+**This dramatically improves:**
+- Custom prompt construction in `add` mode — you can extend the existing voice rules instead of contradicting them
+- Use case suggestions — you know which patterns will work best for THIS specific instance
+- Deep research — you can frame queries to align with the bot's role definitions
+- Edit suggestions — owner says „make my bot more direct" → you can show specific lines in current prompt to change
+
+### Editing Drive content
+
+When owner wants to change instance behavior, the skill can edit Drive content directly:
+
+```python
+# Edit SYSTEM PROMPT
+new_content = update_section(current_content, section="VOICE-RULES", new_text="...")
+drive_update_doc(system_prompt_doc_id, new_content)
+
+# Trigger /update via API to apply
+call_buddypro(owner_user, "/update")
+```
+
+After every Drive edit, **always** trigger `/update` via API — without it, the bot doesn't know about the change.
+
+### Editing other Drive content via this pattern
+
+| Doc | Edits possible | Trigger |
+|-----|----------------|---------|
+| `SYSTEM PROMPT` | Persona, voice rules, frameworks | `/update` |
+| `ONBOARDING` | First-message JSON array, V_K_ name placeholder | `/update` |
+| `INITIATED MESSAGES` | Proactive message templates | `/update` + `/shouldInitiateMessages:true` |
+| `Transcription settings` | Language, keywords, quality toggle | `/update` (applies to NEW content only) |
+| `URL SOURCES` doc | Add/remove URLs | `/update` |
+| `SOURCES/TEXTS/{name}` | Edit text content | `/update` |
+| `RAW SOURCES/...` | Edit short complete items | `/update` |
+
+### Cross-reference with buddypro-instance-mastery skill
+
+If the user has Pavel's internal `buddypro-instance-mastery` skill installed (or similar Drive-aware BuddyPro skill), this skill can defer to it for advanced operations:
+
+- Voice clone management
+- Multi-source bulk edits
+- Knowledge base restructuring
+- Role doc editing
+
+The master skill has more detailed Drive workflow knowledge. This skill (Owner API) handles the API layer; if Drive access is available, leverage what's in the master skill.
+
+### When Drive integration is NOT available
+
+If no `mcp__gdrive__*` or similar tools, the skill operates without Drive context. That's fine — most Owner API patterns work without it. But if the owner is doing instance management work (system prompt tuning, knowledge updates), suggest:
+
+> *„I notice we don't have Google Drive access set up. If you'd like me to help edit your instance's system prompt or knowledge directly, you can install a Google Drive MCP server (e.g., `@modelcontextprotocol/server-gdrive`) — it makes everything much faster and lets me actually see your instance's setup."*
+
 ## Critical warnings
 
 1. **Don't rename folders, subfolders, or auto-generated docs** — instance breaks.

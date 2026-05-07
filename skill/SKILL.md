@@ -38,6 +38,18 @@ If anything is missing, **load `references/getting-started.md` first** and walk 
 
 If everything is ready, proceed to active-assistant mode (described in `getting-started.md`).
 
+## 🔗 Google Drive integration check (high-value bonus)
+
+If the agent has Google Drive access (via `mcp__gdrive__*` tools, `mcp__google-drive__*`, or similar), it can dramatically improve instance understanding by reading the bot's `SYSTEM PROMPT` Drive doc. See `references/instance-management.md` → "Google Drive integration" section for full procedure.
+
+Quick check:
+```bash
+# In Claude Code, check if Drive MCP tools are available
+# If yes: offer to scan for the user's BuddyPro folder and read system prompt
+```
+
+When Drive access is available, the skill knows EXACTLY how the bot is supposed to behave (its persona, voice rules, frameworks) — leading to better custom prompts, more relevant use case suggestions, and direct edit capability.
+
 ## 🎯 Deep Research detection
 
 Before defaulting to a single API call, check if the user's request actually warrants deep research (multi-step, multi-branch). Triggers for deep research include:
@@ -192,4 +204,4 @@ If `UPDATE_AVAILABLE`, mention it once at the start of your response — **in th
 
 If user asks to update, fetch `https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/INSTALL.md` and re-run the install procedure. (Production note: once `docs.buddypro.ai/skill` redirect is set up, that becomes the user-facing canonical URL — but the install procedure stays the same; only this URL changes.)
 
-*Version: 0.7.2 — see VERSION file*
+*Version: 0.7.3 — see VERSION file*
