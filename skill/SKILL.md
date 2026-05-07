@@ -118,6 +118,35 @@ User wants to integrate BuddyPro
 
 6. **Don't expose `bapi_` keys client-side.** They have full access to the instance. Always proxy through your own backend.
 
+## 🔴 Pre-Execution Protocol — for ANY slash command
+
+Before sending ANY slash command via the API (even 🟢 read-only ones), the skill MUST:
+
+1. **Look up the command** in `references/management-commands.md`. If not found there, check `https://docs.buddypro.ai/advanced/commands-list` (the canonical source). If still unclear, refuse to execute and tell the user „I don't know exactly what this command does — let me check the docs together first."
+
+2. **Verify exact syntax** including:
+   - Parameter count and order
+   - Parameter format (string vs number, English vs localized values)
+   - Required vs optional parameters
+   - Forbidden values (e.g., `/setDefaultCost` period MUST be English `months`/`years`, not `měsíc`)
+   - Length / format constraints (e.g., invite codes MUST be exactly 7 chars uppercase)
+
+3. **Verbalize what will happen** to the user before sending. Example:
+   > *„I'll run `/generateBuddyProInvite:50:WORKSHOP:10:30` which creates a trial invite code 'WORKSHOP' allowing up to 10 users with 50 trial messages each, expiring in 30 days. Confirm?"*
+
+4. **Watch for variable hazards** — many commands take values that can have catastrophic effects if wrong:
+   - Pricing: `/setDefaultCost:499:CZK:months:1` — wrong currency or period silently breaks subscription flow
+   - User IDs: `/disableUser:12345` — wrong ID disables wrong customer
+   - URLs: `/setFolder:{wrong-url}` — could lose connection to current Drive
+   - Messages: `/messageAllUsers:false:text:all:dynamic:..."` — typo reaches all real customers
+   - Booleans: `/messageAllUsers:false:...` — `false` means REAL SEND (not safe!)
+
+5. **NEVER guess parameter format.** If the user gives ambiguous input, ask. „Did you mean message count or trial duration?" is always cheaper than an unrecoverable mistake.
+
+6. **Run the safety policy check below** based on classified risk level.
+
+If you have not done all 6 steps, you have not earned the right to send the command. No shortcuts.
+
 ## 🔴 Safety Policy — Critical Commands
 
 The skill's API key controls a **real production BuddyPro instance with real users, real money, real customer data**. Many slash commands change instance behavior, customer experience, or pricing. Most are irreversible.
@@ -151,4 +180,4 @@ If `UPDATE_AVAILABLE`, mention it once at the start of your response — **in th
 
 If user asks to update, fetch `https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/INSTALL.md` and re-run the install procedure. (Production note: once `docs.buddypro.ai/skill` redirect is set up, that becomes the user-facing canonical URL — but the install procedure stays the same; only this URL changes.)
 
-*Version: 0.3.1 — see VERSION file*
+*Version: 0.3.2 — see VERSION file*

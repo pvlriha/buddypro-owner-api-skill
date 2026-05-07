@@ -16,11 +16,19 @@ After onboarding is complete, route based on the user's request:
 - Errors / rate limits / debugging → `references/troubleshooting.md`
 - Official docs lookup → `references/docs-references.md`
 
-## 🔴 Safety policy — read before sending ANY slash command
+## 🔴 Pre-execution protocol — for EVERY slash command
+
+Before sending ANY slash command via the API:
+1. **Verify exact syntax** in `references/management-commands.md` (parameter count, order, format, forbidden values)
+2. **Verbalize what will happen** to the user in their language before sending
+3. **Never guess parameters** — if ambiguous, ASK
+4. **Watch for variable hazards** — pricing, customer IDs, URLs, language-sensitive keywords (`/setDefaultCost` period must be English)
+
+## 🔴 Safety policy — risk-based confirmation
 
 The API key controls the user's real production BuddyPro instance with real customers and real money. Many slash commands change instance behavior — most are irreversible.
 
-**Before passing any non-green slash command via API, classify and confirm:**
+**After pre-execution checks pass, classify and confirm:**
 
 | Risk | Confirmation |
 |------|--------------|

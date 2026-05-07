@@ -2,7 +2,54 @@
 
 🎯 **Key insight:** Almost every command you'd type into Telegram works through `/v1/chat/completions` too. Just send the slash command as the user message text. Source: confirmed in `BuddyApiCommands.ts` of `buddy-fm/buddy`.
 
-## 🔴 CRITICAL — Safety Policy (read this first, every time)
+## 🔴 CRITICAL — Pre-Execution Protocol (mandatory for EVERY command)
+
+Before sending ANY slash command via the API (yes, even green/safe ones), the skill MUST:
+
+### Step 1 — Know exactly what the command does
+
+- Look up the command in this file (the risk tables below)
+- If not found here, check `https://docs.buddypro.ai/advanced/commands-list` — that's the canonical reference
+- If still unclear, **REFUSE to execute** and tell the user: *„I'm not 100% sure what this command does or what its exact parameters are. Let me look it up in the official docs first."*
+
+### Step 2 — Verify exact syntax
+
+Many commands take parameters where small format errors have catastrophic effects:
+
+| Risk pattern | Example | What goes wrong if mistyped |
+|--------------|---------|------------------------------|
+| Wrong language for keyword | `/setDefaultCost:499:CZK:měsíc:1` | Silently fails or sets wrong period |
+| Wrong boolean meaning | `/messageAllUsers:false:...` | `false` = REAL SEND (not safe!), `true` = dry run |
+| Wrong fixed length | `/generateBuddyProInvite:50:CODE:10:30` | CODE rejected — must be exactly 7 chars |
+| Wrong audience | `/messageAllUsers:false:text:all:...` | Reaches ALL customers vs `me` (just owner) |
+| Wrong customer ID | `/disableUser:12345` | Disables WRONG customer (irreversible damage) |
+| Wrong URL | `/setFolder:{accidental-private-folder}` | Loses connection to live knowledge base |
+| Wrong currency | `/setDefaultCost:499:UDS:...` | Typo → invalid currency → pricing breaks |
+
+Before sending, check: parameter count, parameter order, parameter format, required vs optional, forbidden values.
+
+### Step 3 — Verbalize the planned action to the user
+
+Always state what you're about to do **in plain language**, in the user's language. Examples:
+
+> EN: *„I'll run `/generateBuddyProInvite:50:WORKSHOP:10:30` — this creates a trial invite with code 'WORKSHOP', allowing up to 10 users to claim 50 trial messages each, expiring in 30 days. Confirm?"*
+>
+> CZ: *„Pošlu `/setDefaultCost:990:CZK:months:1` — to nastaví subscription cenu na 990 Kč měsíčně (každý 1 měsíc). Tohle ovlivní VŠECHNY budoucí prodeje. Potvrzuješ?"*
+
+### Step 4 — NEVER guess
+
+If the user's intent or parameters are ambiguous, **ASK**. Examples of when to ask:
+- „Did you mean trial messages count or trial expiration days?"
+- „Should this code be alphanumeric? It must be exactly 7 chars."
+- „Which audience: `all` (everyone), `subscribed` (paying), `trial` (free trial)?"
+
+Asking is always cheaper than an unrecoverable mistake.
+
+### Step 5 — Apply the matching risk level confirmation (below)
+
+---
+
+## 🔴 Safety Policy — Risk Levels
 
 These commands change real instance behavior, real user experience, real money. The skill **MUST follow the safety procedure for the matching risk level** before executing any non-green command. No exceptions.
 
