@@ -333,6 +333,23 @@ systemPrompt: optional, usually same for whole branch
 
 **This means Type A can go MUCH deeper than initially thought.** The earlier estimate of „5-10 turns" was conservative. **12-15+ turns is realistic for rich topics.**
 
+**Pavel's claim (qualitative, owner of bot, deep system understanding):**
+> *„Reálně si myslím, že můžeme jít mnohem hlouběji než 12 turns — i 50 turns do hloubky bude dávat smysl. To je obrovská síla BuddyPro a akumulace memory."*
+
+**Implications if Pavel's claim holds:**
+- A single Type A branch could produce 16,000+ words of dense content (50 × 334 avg)
+- This would be the equivalent of a 30+ page book chapter from ONE conversation
+- Cost: 50 × $0.05 = ~$2.50 per super-deep branch
+- This would dramatically reshape budget allocation — fewer branches, MUCH deeper each
+
+**Status:** 🟡 50-turn claim is HYPOTHESIS, validated only to turn 12. Planned validation: extended saturation test going to turn 30+ on a topic with broad domain coverage.
+
+**Conservative recommendation until validated:**
+- For now: plan 12-15 turns as default Type A length
+- For exhaustive research: try 20-25 turns, watch for saturation signals
+- For very rich topics with clear sub-topics: experiment up to 30+ turns
+- Always monitor sim_to_prev — actual saturation > arbitrary turn limit
+
 **Pattern (12-turn version, validated):**
 - Turn 1: „Tell me about {principle} broadly — top 3 high-level"
 - Turn 2: „What ELSE didn't you mention? Less obvious principles?"
@@ -492,20 +509,63 @@ Continuous chat (Type A, user=research-pricing-X)
 
 **Don't reset just because you hit turn 10.** Empirically, turn 12 was still novel. Going to turn 15-20 on rich topics is reasonable.
 
-### Principle 6 — Type C only with prior probe
+### Principle 6 — Type C requires SEMANTIC variance check (architecture-mandated)
 
-🔴 **Empirically validated** — running Type C blindly with 4-7 user profiles on a question that has a canonical answer just costs 4-7× the budget for 1× insight. **ALWAYS probe first:**
+🔴 **This is logically expected from the BuddyPro architecture, not a surprising finding:**
+
+BuddyPro = **LLM (Claude Sonnet 4.6) + RAG (Pinecone vector retrieval)**.
+
+```
+Same question → same Pinecone retrieval → same top-10 chunks
+                                       ↓
+                              Same content fed to LLM
+                                       ↓
+                Different formulations (LLM stochasticity)
+                BUT same underlying knowledge / same principles
+```
+
+Empirically confirmed (Test 2, 10-profile run, 2026-05-07):
+- **Textual similarity: 5.5%** — each profile formulates differently
+- **Semantic similarity: ~90%** — 9/10 profiles mention the SAME 3 dominant principles
+- **Conclusion: Type C is wasted on canonical questions** despite low textual similarity
+
+**Why naive textual-similarity check is misleading:** Char-level diff sees „Za prvé, prodávej výsledky" vs „První princip — hodnota nad časem" as 95% different. Semantically they're identical.
+
+**When can Type C produce TRUE semantic variance?** Architecture-derived answer:
+
+1. **Different `user` profiles with DIFFERENT memory** → effectively different query context → different RAG retrieval. Memory accumulates from past conversations, so profile A who has discussed niche X has different effective context than profile B fresh.
+2. **Question shape forces different chunks** → asking about same topic from radically different framings can hit different KB regions
+3. **System prompt explicitly forces different framing** (Type D + Type C combined) → LLM rewrites with constraints that surface different aspects
+
+**Heuristic — semantic, not textual, variance check:**
 
 ```python
 # Cheap probe (1 call) before deciding to run Type C
 probe_answer = call_bp(stable_user, top_question)
 
 # Decide based on probe content
-if signals_variance_expected(probe_answer):  # mentions "several approaches", "depends on...", multiple frameworks
+if signals_variance_expected(probe_answer):
+    # explicit signals: "several approaches", "depends on...", multiple frameworks named
     run_type_c_with_3_to_5_profiles()
 else:
-    skip_type_c()  # save the budget for Type A depth instead
+    skip_type_c()
 ```
+
+**Where Type C IS valuable (when used right):**
+- Surface SECONDARY/edge principles (40% of Test 2 profiles mentioned 'anchor pricing' that 60% didn't — that's surface area worth probing)
+- Explicit variety prompts: *„Give me UNUSUAL or contrarian principles for X"*, *„From a NON-OBVIOUS angle"*, *„The principle most coaches IGNORE"*
+- Comparing with explicit framing differences (Type D + Type C combined)
+
+**Where Type C is WASTE:**
+- Canonical questions (KB has ONE primary answer)
+- Generic „give me top N" — bot will list same N every time
+- Domain has well-defined frameworks (KB will return them)
+
+**Better alternative when wanting variety:** Use **Type D (custom persona)** to FORCE different framings:
+- Same topic, but with explicit „you are now a contrarian" persona
+- „You are explaining to a complete beginner" persona
+- „You are providing the most counter-intuitive advice" persona
+- This produces semantic variance through explicit framing, not by hoping isolated profiles diverge.
 
 ### Principle 7 — Bot may refuse generic questions
 

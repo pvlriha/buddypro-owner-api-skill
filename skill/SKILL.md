@@ -204,4 +204,4 @@ If `UPDATE_AVAILABLE`, mention it once at the start of your response — **in th
 
 If user asks to update, fetch `https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/INSTALL.md` and re-run the install procedure. (Production note: once `docs.buddypro.ai/skill` redirect is set up, that becomes the user-facing canonical URL — but the install procedure stays the same; only this URL changes.)
 
-*Version: 0.7.4 — see VERSION file*
+*Version: 0.7.5 — see VERSION file*
