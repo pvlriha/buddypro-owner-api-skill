@@ -133,6 +133,34 @@ Outside HTTP layer:
 
 ## Content-level issues
 
+### "Bot is asking clarifying questions instead of answering"
+
+**Symptoms:** Owner asks something like *„udělej mi průzkum o vysoce ziskových webinářích"* and the bot replies *„Pojďme se nejdřív zorientovat — jaký je tvůj cíl? Pro koho to píšeš?"* instead of giving frameworks. Especially common for short or generic prompts. Especially destructive in batch eval and deep research where 30-50% of returned content is clarification noise.
+
+**Cause:** The bot's default behavior is to ask clarifying questions when context is incomplete. Without an explicit instruction to skip clarification and lead with frameworks, it does what coaches do — ask before answering.
+
+**Fix:** Apply the canonical anti-clarification directive via `x_buddy_systemPrompt` with `x_buddy_systemPromptMode: "add"`. Full directive text + code skeleton in `deep-research-architecture.md` → „🔴 MANDATORY: Anti-Clarification Directive on EVERY API Call" section.
+
+Quick example:
+```bash
+DIRECTIVE='## DIRECTIVE PRO TENTO REQUEST
+Pracuj okamžitě s tím, co je v otázce. NEDOPTÁVEJ se. Nabídni 3-7 konkrétních rámců.
+Délka: 250-500 slov hutného obsahu. Žádné „to záleží".'
+
+curl -X POST https://api.buddypro.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BUDDYPRO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "$(jq -n --arg d "$DIRECTIVE" '{
+    x_buddy_systemPrompt: $d,
+    x_buddy_systemPromptMode: "add",
+    messages: [{role: "user", content: "tvoje krátká otázka tady"}]
+  }')"
+```
+
+🔴 **Always use `add` mode, never `replace`.** Replace would erase the bot's voice rules and persona — we want expertise + voice intact, just stripped of the clarifying behavior.
+
+🔴 **Especially critical for deep research / batch eval.** If you're running 18-25+ calls in a pipeline, the directive must be on EVERY call — not just the first.
+
 ### "The bot answers nothing useful"
 
 The HTTP call succeeds, but `choices[0].message.content` is generic, evasive, or off-topic.

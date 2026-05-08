@@ -201,15 +201,32 @@ Deep research is a **base method** that adapts to the scenario. Here are the mos
 - *„How to write a high-converting sales page"*
 - *„The complete playbook for cold outreach"*
 
-**Pipeline:**
-- Phase 1: Plan with breadth focus (8-12 angles covering all sub-areas)
-- Phase 2: Broad probe (Type B parallel) — bulk angle coverage
-- Phase 3: Principle detection — extract the bot's strongest frameworks
-- Phase 4: Deep dive (Type A) on top 3-5 principles
-- Phase 5: Skip perspective probe (no person-specific variance needed)
-- Phase 6: Optional Type D persona angles if owner wants tier-specific
-- Phase 7: Synthesis → **Principle Compendium** strategy
-- Output: structured guide, sections per principle/framework
+**🟢 DEFAULT pipeline = MASTER PATTERN** (empirically validated, lowest token cost, highest divergence per call):
+
+```
+3 forks × 6-8 turns each × different topology × different role persona
++ ANTI_CLARIFICATION_DIRECTIVE on every call
++ synthesis (Claude Code, not BuddyPro)
+```
+
+**Concrete shape for „Universal how-to":**
+
+| Fork | Topology | Role persona (REPLACE-mode add-on) | Why this combination |
+|------|----------|------------------------------------|----------------------|
+| Fork 1 | HLOUBKA (drill-down) | Default expert voice | Goes operational depth on the topic's core mechanism |
+| Fork 2 | ŠÍŘKA (lateral) | Strategist persona | Maps the whole surface area (sub-topics) |
+| Fork 3 | INVERZE (anti-pattern lens) | Critic persona | Extracts failure modes, anti-patterns, common mistakes |
+
+Each fork = stable `user` (e.g., `research-{slug}-fork{N}-{timestamp}`), 6-8 turns, accumulating memory within fork. All forks run in parallel (each call ~3-5s with `time.sleep(3)` between calls in same fork to respect rate limit).
+
+**Total budget:** 18-24 calls / ~$0.90-1.20 / 3-5 min wall-clock (parallelized) / ~6000-9000 words of source material.
+
+**🟡 FALLBACK pipeline (when MASTER PATTERN doesn't fit):** if the topic is too narrow to differentiate 3 distinct angles (e.g., owner asks for one specific framework, not a whole methodology), fall back to single Type A continuous chat 12-15 turns with HLOUBKA topology + anti-clarification directive. ~12-15 calls / ~$0.75 / 3-4 min.
+
+**🟠 EXHAUSTIVE pipeline (when owner wants the deluxe doc):** the 6-stage 40-65 call blueprint described later in this file under „Optimal blueprint (architecture-grounded, exhaustive variant)". Use only when owner explicitly says „make it comprehensive" or budget allows.
+
+- Output strategy: **Principle Compendium** — sections per principle/framework, with each fork's contribution visible in the synthesis.
+- Synthesis happens in Claude Code, not BuddyPro. Each fork produces raw material; Claude Code weaves the final document.
 
 **External research:** Usually NOT needed. The bot's KB IS the answer.
 
@@ -670,32 +687,61 @@ T5: meta | T6: contrarian | T7: synthesis
 ```
 Same user, different effective query each turn → different chunks → semantic breadth without forking.
 
-### Optimal blueprint (architecture-grounded)
+### 🟢 DEFAULT blueprint — MASTER PATTERN (recommended for ~95% of jobs)
+
+This is the empirically validated default. Use this unless the owner explicitly asks for the exhaustive variant or the topic is too narrow.
 
 ```
-STAGE 1 — Topology mapping (3 stateless calls, shape-rotated)
-  Quick KB topology — which concepts dominate
+3 forks × 6-8 turns × different topology × different role
++ ANTI_CLARIFICATION_DIRECTIVE on every call
++ synthesis in Claude Code
+
+TOTAL: 18-24 calls / $0.90-1.20 / 3-5 min wall-clock (parallelized)
+OUTPUT: 6000-9000 words source material → 3-7 page polished document
+```
+
+**Empirical validation (2026-05-08):** 18 calls / 6289 words / 349 words per call avg / 1.5-2.9% cross-fork similarity / 2.8 min wall-clock. Best ratio of divergence-per-call across all tested configurations.
+
+**Topology assignments per fork:**
+- Fork 1: HLOUBKA (depth) — operational drill-down
+- Fork 2: ŠÍŘKA (breadth) — sub-topic surface coverage
+- Fork 3: INVERZE (anti-pattern) — failure modes / what NOT to do
+
+(Other topology combinations work — see Question Topology section below. These three give the widest divergence per the empirical test.)
+
+### 🟠 EXHAUSTIVE blueprint — only when explicitly requested
+
+Use this when owner says *„make it comprehensive"* / *„the deluxe version"* / *„I want everything you have on X"*. Costs 2-3x more, produces 3-5x more raw material, takes 2-3x longer.
+
+```
+STAGE 1 — Skip topology probe (folded into Stage 2 fork topologies)
+          Old design used 3 stateless calls here — DEPRECATED, see
+          „Anti-Clarification Directive" section above for why mini-probes
+          waste calls.
 
 STAGE 2 — Primary deep chat (15-25 calls, Strategy A + E)
-  Single user, question-shape rotation, 15-25 turns
+  Single user, question-shape rotation, 15-25 turns + directive
   Foundation: 6000-9000 words
 
 STAGE 3 — Steered branch forks (2-3 branches × 10-15 turns, Strategy B)
-  Different context biases → different retrievals
+  Different context biases + topology + role per fork → different retrievals
   Output: 8000-15000 words divergent angles
 
 STAGE 4 — Lens rotation (5-7 calls, Strategy C + Type D)
-  Custom personas force semantic re-framing
+  Custom role personas force semantic re-framing
 
 STAGE 5 — Spawn-on-mention drill-downs (5-10 calls, Strategy D)
-  Captured in parallel during Stages 2-3
+  Captured in parallel during Stages 2-3 — when bot mentions a sub-concept
+  worth drilling, fork a child task
 
 STAGE 6 — Synthesis verification (3-5 calls)
   „What am I missing in [cluster X]?" — gap-filling
 
-TOTAL: 40-65 calls / $2-3.25 / 8-15 min
+TOTAL: 38-62 calls / $1.90-3.10 / 7-14 min
 OUTPUT: 25,000-40,000 words → 5-15 page polished document
 ```
+
+🔴 **Every call in every stage above MUST include the anti-clarification directive (and the appropriate topology + role directive stacked via `add` mode).** No call ever goes out raw — see the „Anti-Clarification Directive" section near the top of this file.
 
 ### Pavel's „depth vs breadth vs spiral" — architecture answer
 

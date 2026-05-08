@@ -1,12 +1,13 @@
 {
   "name": "buddypro-owner-api",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "description": "Claude Code skill for integrating with BuddyPro Owner API",
   "author": "pvlriha",
   "license": "MIT",
   "files": {
     "skill/SKILL.md": "$HOME/.claude/skills/buddypro-owner-api/SKILL.md",
     "VERSION": "$HOME/.claude/skills/buddypro-owner-api/VERSION",
+    "CHANGELOG.md": "$HOME/.claude/skills/buddypro-owner-api/CHANGELOG.md",
     "skill/references/getting-started.md": "$HOME/.claude/skills/buddypro-owner-api/references/getting-started.md",
     "skill/references/api-reference.md": "$HOME/.claude/skills/buddypro-owner-api/references/api-reference.md",
     "skill/references/api-features-deep-dive.md": "$HOME/.claude/skills/buddypro-owner-api/references/api-features-deep-dive.md",

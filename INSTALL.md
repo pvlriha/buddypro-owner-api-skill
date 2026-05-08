@@ -22,6 +22,7 @@ mkdir -p "$TMP/skill/references" "$TMP/command"
 # Download into temp staging area
 files=(
   "VERSION:VERSION"
+  "CHANGELOG.md:CHANGELOG.md"
   "skill/SKILL.md:skill/SKILL.md"
   "skill/references/getting-started.md:skill/references/getting-started.md"
   "skill/references/api-reference.md:skill/references/api-reference.md"
@@ -50,6 +51,7 @@ done
 # are never in the cp source. Onboarding state is preserved across re-installs/updates.
 mkdir -p "$DEST_SKILL/references" "$DEST_CMD"
 cp "$TMP/VERSION" "$DEST_SKILL/VERSION"
+cp "$TMP/CHANGELOG.md" "$DEST_SKILL/CHANGELOG.md"
 cp "$TMP/skill/SKILL.md" "$DEST_SKILL/SKILL.md"
 cp "$TMP/skill/references/"*.md "$DEST_SKILL/references/"
 cp "$TMP/command/buddypro-api.md" "$DEST_CMD/buddypro-api.md"

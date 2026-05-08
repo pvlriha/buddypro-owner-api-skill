@@ -46,15 +46,25 @@ curl -X POST https://api.buddypro.ai/v1/chat/completions \
 
 **When:** 50–500 questions to evaluate answer quality, prompt variants A/B test, regression test before content update.
 
-**Setup:** `x_buddy_saveToHistory: false` (no pollution). Optionally `user` per question for true isolation.
+**Setup:** `x_buddy_saveToHistory: false` (no pollution). Optionally `user` per question for true isolation. **Always include anti-clarification directive** — without it, ~30-50% of batch responses are clarifying questions, not actual answers, polluting your eval data.
 
 ```bash
+DIRECTIVE='## DIRECTIVE PRO TENTO REQUEST
+Pracuj okamžitě s tím, co je v otázce. NEDOPTÁVEJ se, NEPTEJ se na další kontext.
+Pokud je otázka krátká nebo obecná, předpokládej obecný profesionální kontext a JDI ROVNOU K VĚCI:
+- 1-2 věty direct odpovědi
+- 3-7 konkrétních rámců/principů s názvem + popisem + příkladem
+- Pokrytí všech relevantních úhlů v jedné odpovědi
+Délka: 250-500 slov. Žádné „to záleží", žádné „potřebuji víc kontextu".'
+
 for q in test_questions/*.txt; do
   curl -s -X POST https://api.buddypro.ai/v1/chat/completions \
     -H "Authorization: Bearer $BUDDYPRO_API_KEY" \
     -H "Content-Type: application/json" \
-    -d "$(jq -n --arg q "$(cat $q)" '{
+    -d "$(jq -n --arg q "$(cat $q)" --arg d "$DIRECTIVE" '{
       x_buddy_saveToHistory: false,
+      x_buddy_systemPrompt: $d,
+      x_buddy_systemPromptMode: "add",
       messages: [{role: "user", content: $q}]
     }')"
   sleep 3
@@ -746,11 +756,30 @@ Step 5: REFINEMENT — owner says „make it shorter / add a section / change to
 ```python
 import os, time, requests, json
 
-def call_bp(user, message, system_prompt=None):
-    payload = {"user": user, "messages": [{"role": "user", "content": message}]}
-    if system_prompt:
-        payload["x_buddy_systemPrompt"] = system_prompt
-        payload["x_buddy_systemPromptMode"] = "add"
+# 🔴 MANDATORY directive on every deep-research call — without it the bot
+# defaults to clarifying questions instead of giving direct framework answers.
+ANTI_CLARIFICATION_DIRECTIVE = """## DIRECTIVE PRO TENTO REQUEST
+Pracuj okamžitě s tím, co je v otázce. NEDOPTÁVEJ se, NEPTEJ se na další kontext, NEŽÁDEJ o upřesnění.
+
+Pokud je otázka krátká nebo obecná, předpokládej obecný profesionální kontext a JDI ROVNOU K VĚCI:
+- 1-2 věty direct odpovědi
+- 3-7 konkrétních rámců/frameworků/principů z tvé znalostní báze s NÁZVEM + popisem + příkladem
+- Pokrytí všech relevantních úhlů v jedné odpovědi (žádný dotaz „který chceš?")
+
+Délka: 250-500 slov hutného obsahu. Žádné prázdné fráze, žádné „to záleží"."""
+
+def call_bp(user, message, extra_directive=None):
+    # Stack the mandatory anti-clarification directive with any extra (topology/role) directive
+    sysprompt = ANTI_CLARIFICATION_DIRECTIVE
+    if extra_directive:
+        sysprompt += "\n\n" + extra_directive
+
+    payload = {
+        "user": user,
+        "x_buddy_systemPrompt": sysprompt,
+        "x_buddy_systemPromptMode": "add",  # ALWAYS add — never replace (preserves bot voice)
+        "messages": [{"role": "user", "content": message}],
+    }
     r = requests.post(
         "https://api.buddypro.ai/v1/chat/completions",
         headers={"Authorization": f"Bearer {os.environ['BUDDYPRO_API_KEY']}",

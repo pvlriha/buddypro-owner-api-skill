@@ -105,7 +105,7 @@ fi
 | `VERSION_CHECK_CACHED` | Continue normally — recent check confirmed up-to-date enough. |
 | `VERSION_UP_TO_DATE` | Continue normally. No mention to user. |
 | `VERSION_CHECK_FAILED` | Continue with local version. No mention to user (don't spam them with network errors). |
-| `VERSION_UPDATE_AVAILABLE` | **Auto-update silently right now.** Fetch `https://docs.buddypro.ai/skill` (= `INSTALL.md`), extract its Step 1 bash block, run it. After successful update, surface ONE line at the start of your response (in user's language): *„🔔 Auto-updated BuddyPro skill: v[OLD] → v[NEW]. Pokračuji s aktuální verzí."* / *„🔔 Auto-updated BuddyPro skill: v[OLD] → v[NEW]. Continuing with the new version."* Then proceed with the user's actual task. |
+| `VERSION_UPDATE_AVAILABLE` | **Auto-update silently right now.** Fetch `https://docs.buddypro.ai/skill` (= `INSTALL.md`), extract its Step 1 bash block, run it. After successful update, **also fetch `https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/CHANGELOG.md`** and extract the section for the new version. Surface ONE compact block at the start of your response (in user's language): *„🔔 Auto-updated BuddyPro skill: v[OLD] → v[NEW]. Hlavní změny: [3-5 word summary line 1] / [3-5 word summary line 2]. Pokračuji s aktuální verzí."* / EN equivalent. Then proceed with the user's actual task. |
 
 🔴 **Auto-update is the default — don't ask the user for permission.** Updates preserve `state.env` and `.onboarded` (verified in INSTALL.md cp logic), so the user's onboarding is never lost. Asking *„Want me to update?"* on every new version is friction the user doesn't need. The notification line after auto-update is courtesy + audit trail.
 
@@ -374,7 +374,9 @@ The skill's API key controls a **real production BuddyPro instance with real use
 
 If you encounter a slash command not in the risk matrix, treat it as 🟠 by default and ask the user what it does before executing.
 
-*Version: 0.9.2 — see VERSION file*
+*Version: 0.9.3 — see VERSION file*
+
+*v0.9.3 MASTER PATTERN promoted as default + anti-clarification propagated + standalone CHANGELOG.md (2026-05-08): `deep-research-architecture.md` Scenario 1 (Universal how-to) now leads with MASTER PATTERN (3 forks × 6-8 turns × different topology × different role) as the default pipeline (old 7-phase Type B+A hybrid relegated to fallback for very narrow topics); Optimal Blueprint section now leads with MASTER PATTERN (18-24 calls / $0.90-1.20 / 3-5 min — empirically validated 2026-05-08 at 18 calls / 6289 words / 1.5-2.9% cross-fork sim) and presents the exhaustive 6-stage variant as secondary; anti-clarification directive code skeleton now visible in `use-cases.md` X3 + A2 (callers see it at point of use, not just in architecture file); `troubleshooting.md` adds gotcha „Bot is asking clarifying questions instead of answering" with directive + curl example; standalone `CHANGELOG.md` created so update notifications can fetch only the relevant entry; auto-update Step 0 now fetches CHANGELOG.md after install and surfaces 3-5 word summary lines per update.*
 
 *v0.9.2 auto-update + anti-clarification (2026-05-08): auto-update check moved to TOP of SKILL.md as Step 0 (was buried at the bottom and easily skipped by auto-trigger invocations); changed from passive „mention once" to silent auto-update with 4h cache TTL (avoids GitHub ping every invocation); explicit pin support via `.pinned_version` marker for users who don't want auto-updates; deep-research-architecture.md now has MANDATORY anti-clarification directive in CZ + EN, applied via `x_buddy_systemPrompt` mode `add` on EVERY API call (without it bot defaults to clarifying questions instead of answering with frameworks); 3-5 call mini-probes deprecated (minimum 6 calls per stage, fold smaller stages into larger ones); `add` mode preserves bot voice + persona while stripping clarifying behavior.*
 
