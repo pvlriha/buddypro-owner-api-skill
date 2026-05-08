@@ -2,6 +2,51 @@
 
 All notable changes documented per release. Format: human-readable, ordered newest first. Same content as the footer of `skill/SKILL.md`, but in a standalone file so update notifications can fetch only the relevant entry without parsing SKILL.md.
 
+## v0.11.0 — 2026-05-08
+
+**Multi-instance support + comprehensive audit fix release. BREAKING storage schema (auto-migrated from v0.10.x).**
+
+### Multi-instance core (M1 — Pavel's primary requirement)
+
+- **New schema: `instances.json`** at `~/.claude/skills/buddypro-owner-api/instances.json` replaces single `state.env`. Stores N instances, each with own `bapi_` key + name + topic + slug + test_profile + onboarded_at + version. Has `default_instance` field. Auto-migrated from legacy v0.10.x `state.env` on first invocation (state.env kept for backward compat with shell scripts).
+- **Active-instance resolution at every invocation**: slug-specific slash command → default → name match in user message → ask if ambiguous.
+- **`/buddypro-add-instance`** — new slash command for adding additional instances (skips privacy warning + mental model briefing — already known).
+- **`/buddypro-list-instances`** — new slash command shows all configured instances + offers set-default / switch / remove operations.
+- **Per-instance slash commands** auto-created at onboarding (e.g., `/online-strateg`) with collision detection — never overwrites existing `/init`, `/buddypro`, etc. Suffixes with `-2`, `-3` if needed.
+- **Description injection** aggregates ALL instance names from instances.json (not just one) so auto-trigger fires on each.
+- **Reset modes per-instance**: „remove instance [name]" deletes one entry + its slash command + re-injects remaining names. „reset all instances" wipes everything. „reset onboarding" with 1 instance = full reset; with 2+ asks which.
+
+### Critical fixes from audit (K1-K5)
+
+- **K1 description leakage** — removed hardcoded „Online Strateg, AI poradce, AI mentor, AI kouč, expert AI" from distributable description (those were Pavel-specific). Description now explains generic mechanism: user-specific instance names are auto-injected into the LOCAL install's SKILL.md at onboarding, never distributed.
+- **K2 heredoc placeholder bug** — Step 3 used `<placeholder>` literals in bash heredoc that wouldn't expand. Replaced with Python helper that reads via env vars (BP_INSTANCE_NAME, BP_INSTANCE_TOPIC, BP_API_KEY, BP_TEST_PROFILE) — no shell-injection from user content (apostrophes, ampersands, diacritics safe).
+- **K3 missing INSTANCE_NAME export + migration check** — SKILL.md self-check in v0.10.0 only exported BUDDYPRO_API_KEY + BUDDYPRO_INSTANCE_TOPIC, not BUDDYPRO_INSTANCE_NAME. Self-check rewritten to read instances.json (Python), set ACTIVE_SLUG, then export all instance vars from active entry. v0.10.x state.env auto-migrates.
+- **K4 `/buddypro-api-update` explicit bash** — slash command was abstract description; now contains concrete bash sequence (rm cache → fetch VERSION → atomic install → re-inject names → surface CHANGELOG entry → write timestamp).
+- **K5 5-step naming** — onboarding clearly says „5 steps" (privacy warning + STEP 0 test profile + STEP 1 key + STEP 2 verify + STEP 3 capture state). SKILL.md TL;DR fact #6 says „first-time onboarding is 5 steps". Inconsistency from v0.10.x („4-step"/„5-step" confusion) eliminated.
+
+### Major fixes (M2-M7)
+
+- **M2 slash command collision detection** — Python helper checks `is_ours()` predicate (file starts with „# Alias for /buddypro-api"). If a `~/.claude/commands/[slug].md` exists and is NOT ours → bump suffix `-2`, `-3`. Built-in commands like `/init` cannot be overwritten.
+- **M3 special characters in instance name** — Python `unicodedata.normalize('NFKD').encode('ascii','ignore')` for slug generation strips diacritics safely. Apostrophes, ampersands handled via env-var passing (no bash escaping needed).
+- **M4 no more bash `read -p`** — agent asks user via plain message, user replies normally, agent reads response via env vars. No interactive stdin in Claude Code subprocess.
+- **M5 reset cleanup completeness** — reset procedures now also delete `.instance-aliases` (legacy v0.10.x), `.last_version_check`, all per-instance slash commands matching `is_ours()` predicate, and re-strip the AUTO-INJECTED-INSTANCE-NAMES block from SKILL.md description.
+- **M6 python3 fallback handling** — INSTALL.md post-install hook prints `INSTANCE_ALIASES_REAPPLY_SKIPPED=python3-missing` instead of silently failing. SKILL.md self-check explicitly checks `MISSING_PYTHON3` and tells user to install. Manifest.json declares python3 as a soft dependency.
+- **M7 post-install hook awareness** — INSTALL.md hook output (INSTANCE_ALIASES_REAPPLIED, ONBOARDING_STATE_PRESERVED, etc.) is documented and `/buddypro-api-update` slash command surfaces it explicitly.
+
+### Minor fixes (N1-N6)
+
+- **N1** — sub-skill footer versions corrected from v0.9.4 → v0.11.0.
+- **N2** — Quick reference table in SKILL.md now has explicit „Find the right Google Drive folder for an instance (gotcha — bot doesn't know its own folder)" entry routing to instance-management.md § Finding the BuddyPro folder.
+- **N3** — Mental model deduplicated. SKILL.md now shows 4-line summary + cross-references getting-started.md § STEP 3 for the full briefing. (Was: 3-bullet version in SKILL.md vs 4-bullet in getting-started.md → contradictory.)
+- **N4** — Step 2 verifies the key BEFORE saving (prevents writing invalid keys to instances.json). HTTP-status decision matrix: 200=continue, 401=regenerate (don't save), 429=wait+retry, 5xx=backoff retry.
+- **N5** — CHANGELOG.md updated with this v0.11.0 entry.
+- **N6** — naming consistency throughout: „5-step onboarding" everywhere (was „4-step" in some places, „5-step" in others).
+
+### Migration notes for v0.10.x users
+
+- Update is silent and atomic. State preserved (instances.json auto-created from state.env). Slash commands `/buddypro-add-instance` and `/buddypro-list-instances` become available. Existing per-instance slash command (if any) continues to work.
+- AUTO-INJECTED-INSTANCE-NAMES block in description uses new marker format with `:END-AUTO-INJECTED.` for clean re-injection (replaces less robust v0.10.0 marker).
+
 ## v0.10.0 — 2026-05-08
 
 **Sub-skill split + instance alias auto-trigger + fresh-agent TL;DR + force-update slash command. Major refactoring release.**

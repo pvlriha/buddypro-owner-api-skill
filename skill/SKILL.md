@@ -1,6 +1,6 @@
 ---
 name: buddypro-owner-api
-description: "Talk to a BuddyPro AI instance from code via HTTPS REST API (POST /v1/chat/completions, OpenAI-compatible). NOT Telegram bot integration — this is an HTTP API for the bot's brain. Use when user wants to integrate their BuddyPro expert AI into their own apps, agents, automations, multi-tenant SaaS, or content workflows; or to trigger management commands programmatically. Auto-trigger also fires on user-specific instance names captured at onboarding (injected into this description by getting-started.md Step 3). Triggers: BuddyPro API, Owner API, bapi_, /v1/chat/completions, send to my BuddyPro bot, talk to my BuddyPro from code, multi-tenant BuddyPro, BuddyPro multi-user, BuddyPro voice agent, BuddyPro image input, /buddypro-api, deep research with my BuddyPro, Online Strateg, AI poradce, AI mentor, AI kouč, expert AI."
+description: "Talk to a BuddyPro AI instance from code via HTTPS REST API (POST /v1/chat/completions, OpenAI-compatible). NOT Telegram bot integration — this is an HTTP API for the bot's brain. Use when user wants to integrate their BuddyPro expert AI into their own apps, agents, automations, multi-tenant SaaS, or content workflows; or to trigger management commands programmatically. Triggers: BuddyPro API, Owner API, bapi_, /v1/chat/completions, send to my BuddyPro bot, talk to my BuddyPro from code, multi-tenant BuddyPro, BuddyPro multi-user, BuddyPro voice agent, BuddyPro image input, /buddypro-api, deep research with my BuddyPro. Auto-trigger ALSO fires on the user's specific instance name once they tell us during onboarding (the name they gave their BuddyPro bot, e.g., the brand they call it in conversation) — that name is injected into this description by `getting-started.md` Step 3 for THIS user's local install only, never distributed."
 trust-level: official
 ---
 
@@ -8,7 +8,7 @@ trust-level: official
 
 ## ⚡ Fresh agent? Read this 30-second TL;DR first
 
-If you just loaded this skill and need to be useful in the next 30 seconds, here are the 7 facts that prevent the most common mistakes — read them, internalize, then proceed:
+If you just loaded this skill and need to be useful in the next 30 seconds, here are the 8 facts that prevent the most common mistakes — read them, internalize, then proceed:
 
 1. **It is an HTTPS REST API, NOT Telegram bot integration.** Same brain that answers in Telegram, but you call it from code via `POST https://api.buddypro.ai/v1/chat/completions`. Saying „I'll send messages to your bot via Telegram API" = wrong.
 
@@ -16,15 +16,17 @@ If you just loaded this skill and need to be useful in the next 30 seconds, here
 
 3. **The `user` field is a sub-profile WITHIN the owner's account, NOT a tenant boundary.** Owner has full read access to all sub-profiles. Do NOT recommend Owner API as a SaaS multi-tenancy primitive. Wait for the End User API for true privacy isolation.
 
-4. **Step 0 of EVERY invocation: auto-update check.** Pin local `VERSION` against `https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/VERSION`. If newer remote → silently auto-update via `https://docs.buddypro.ai/skill`. Cached 4h via `.last_version_check`. Pin via `.pinned_version` if user opts out.
+4. **STEP 0 of EVERY invocation: auto-update check.** Pin local `VERSION` against `https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/VERSION`. If newer remote → silently auto-update via `https://docs.buddypro.ai/skill`. Cached 4h via `.last_version_check`. Pin via `.pinned_version` if user opts out.
 
-5. **Onboarding is `state.env`-based, not env-vars-based.** Source `~/.claude/skills/buddypro-owner-api/state.env` first; if missing, scan `~/.zshenv`, `~/.zshrc`, `~/.bash_profile`, `~/.bashrc`, `~/.profile`, `~/.env`, `./.env`, `../.env`, `../../.env`, git-root `.env`. If found → auto-promote (write state.env + marker), skip privacy warning. If nowhere → run full onboarding (Step 0 = `/test:apitest` profile FIRST).
+5. **STEP 1: state is in `instances.json`** (multi-instance from v0.11.0). `~/.claude/skills/buddypro-owner-api/instances.json` is the canonical store. Each user can have 1 OR MANY BuddyPro instances; each entry has its own `bapi_` key, name, topic, slug. Legacy v0.10.x `state.env` is auto-migrated. Resolve active instance by: slug-specific slash command → default_instance → name match in user message → ask if ambiguous.
 
-6. **EVERY deep-research call MUST include the anti-clarification directive in `x_buddy_systemPrompt` mode `add`.** Without it, bot defaults to clarifying questions instead of answering with frameworks. Full directive text in `references/deep-research-architecture.md` near the top. Stack with topology + role directives via concatenation.
+6. **First-time onboarding is 5 steps.** Privacy warning (out loud, official docs verbatim) → Step 0 (test profile `/test:apitest` in Telegram) → Step 1 (generate `bapi_` key) → Step 2 (verify BEFORE saving) → Step 3 (capture NAME + TOPIC, atomic write to instances.json via Python helper). Adding another instance = same flow, skip privacy warning + mental model briefing.
 
-7. **Deep research default = MASTER PATTERN: 3 forks × 6-8 turns × different topology × different role.** 18-24 calls / $0.90-1.20 / 3-5 min. Old phase-based hybrid (topology probe + Type A 12-turn + Type B forks) is fallback only. Mini-probes (3-5 calls) deprecated — minimum 6 calls per stage.
+7. **EVERY deep-research call MUST include the anti-clarification directive in `x_buddy_systemPrompt` mode `add`.** Without it, bot defaults to clarifying questions instead of answering with frameworks. Full directive text in `references/deep-research-architecture.md` near the top. Stack with topology + role directives via concatenation.
 
-These 7 facts cover ~80% of mistakes a fresh agent makes. The detailed sections below explain WHY each fact matters and HOW to apply it.
+8. **Deep research default = MASTER PATTERN: 3 forks × 6-8 turns × different topology × different role.** 18-24 calls / $0.90-1.20 / 3-5 min. Old phase-based hybrid (topology probe + Type A 12-turn + Type B forks) is fallback only. Mini-probes (3-5 calls) deprecated — minimum 6 calls per stage.
+
+These 8 facts cover ~80% of mistakes a fresh agent makes. The detailed sections below explain WHY each fact matters and HOW to apply it.
 
 ---
 
@@ -146,95 +148,124 @@ fi
 
 ---
 
-## STEP 1 — onboarding state check (run AFTER Step 0)
+## STEP 1 — onboarding state check & active-instance resolution (run AFTER Step 0)
 
-🔴 **Communicate in the user's language.** BuddyPro is global (Czech, English, Spanish, German, …). Detect the language from the user's most recent message and respond in that language. Keep technical identifiers (`bapi_`, `BUDDYPRO_API_KEY`, `BUDDYPRO_INSTANCE_TOPIC`, `/generateApiKey`, `/buddypro-api`) verbatim across all languages.
+🔴 **Communicate in the user's language.** BuddyPro is global (Czech, English, Spanish, German, …). Detect the language from the user's most recent message and respond in that language. Keep technical identifiers (`bapi_`, `BUDDYPRO_API_KEY`, `/generateApiKey`, `/buddypro-api`) verbatim across all languages.
 
-🔴 **Before doing ANY onboarding question, run the auto-discovery scan.** The most common reason a user looks „un-onboarded" is that they DID onboard previously — but in a different shell context, so the env vars don't propagate to the current Claude Code session. The skill MUST find their existing key autonomously, not force them to repeat onboarding.
+🔴 **Multi-instance state lives in `instances.json`.** A user may have ONE or MANY BuddyPro instances. The single source of truth is `~/.claude/skills/buddypro-owner-api/instances.json`. `state.env` (legacy from v0.10.x) is migrated automatically and kept only for backward compatibility.
+
+🔴 **Before doing ANY onboarding question, run the auto-discovery + migration scan.** The most common reasons a user „looks un-onboarded": (a) they DID onboard previously but in a different shell context, (b) they're on v0.10.x state.env and we haven't migrated yet, (c) this is a fresh Claude Code install but they have a `bapi_` key in some `.env`.
 
 **Run this scan as a single bash block:**
 
 ```bash
-STATE_FILE="$HOME/.claude/skills/buddypro-owner-api/state.env"
-ONBOARDED_MARKER="$HOME/.claude/skills/buddypro-owner-api/.onboarded"
+SKILL_DIR="$HOME/.claude/skills/buddypro-owner-api"
+INSTANCES_FILE="$SKILL_DIR/instances.json"
+STATE_FILE_LEGACY="$SKILL_DIR/state.env"
+ONBOARDED_MARKER="$SKILL_DIR/.onboarded"
 
-# 1) PRIMARY source — persistent state file written at last successful onboarding
-if [ -f "$STATE_FILE" ]; then
-    set -a
-    # shellcheck disable=SC1090
-    source "$STATE_FILE"
-    set +a
-    DISCOVERED_AT="state.env"
+# 1) AUTO-MIGRATE legacy state.env → instances.json (only if instances.json doesn't exist)
+if [ -f "$STATE_FILE_LEGACY" ] && [ ! -f "$INSTANCES_FILE" ]; then
+    # See getting-started.md → "Migration from v0.10.x state.env" for full Python migrator
+    # (run it now if not already done)
+    echo "MIGRATION_NEEDED: state.env → instances.json"
 fi
 
-# 2) FALLBACK — exhaustively scan BOTH global home-level files AND project-local
-#    .env files. Order: global first (cross-project persistence wins), then project,
-#    then git-root if we're in a repo. Stop at first match.
-if [ -z "${BUDDYPRO_API_KEY:-}" ]; then
-    candidates=(
-        # GLOBAL home-level shell config + dotenv (most reliable for cross-session reuse)
-        "$HOME/.zshenv"          # always sourced by zsh (best for env vars)
-        "$HOME/.zshrc"           # interactive zsh
-        "$HOME/.bash_profile"    # bash login shell
-        "$HOME/.bashrc"          # bash interactive
-        "$HOME/.profile"         # POSIX fallback
-        "$HOME/.env"             # generic dotenv at home
-        # PROJECT-LOCAL .env files (current dir + 2 levels up)
-        "./.env"
-        "../.env"
-        "../../.env"
-    )
+# 2) PRIMARY check — instances.json exists and has at least 1 entry?
+if [ -f "$INSTANCES_FILE" ] && command -v python3 >/dev/null; then
+    INSTANCE_COUNT=$(python3 -c "import json; d=json.load(open('$INSTANCES_FILE')); print(len(d.get('instances',{})))" 2>/dev/null || echo 0)
+    DEFAULT_SLUG=$(python3 -c "import json; d=json.load(open('$INSTANCES_FILE')); print(d.get('default_instance') or '')" 2>/dev/null)
+else
+    INSTANCE_COUNT=0
+    DEFAULT_SLUG=""
+fi
 
-    # Also try git-repo root .env if we happen to be inside a git repo
+# 3) FALLBACK auto-discovery — only if instances.json missing AND legacy state.env missing
+if [ "$INSTANCE_COUNT" = "0" ] && [ ! -f "$STATE_FILE_LEGACY" ]; then
+    candidates=(
+        "$HOME/.zshenv" "$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.bashrc"
+        "$HOME/.profile" "$HOME/.env"
+        "./.env" "../.env" "../../.env"
+    )
     if git_root=$(git rev-parse --show-toplevel 2>/dev/null); then
         candidates+=("$git_root/.env")
     fi
-
     for candidate in "${candidates[@]}"; do
         if [ -f "$candidate" ] && grep -qE "^[[:space:]]*(export[[:space:]]+)?BUDDYPRO_API_KEY=" "$candidate" 2>/dev/null; then
-            # Source only the BUDDYPRO_* lines (defense — other vars in user's .env are not our business)
-            eval "$(grep -E "^[[:space:]]*(export[[:space:]]+)?BUDDYPRO_(API_KEY|INSTANCE_TOPIC|INSTANCE_NAME)=" "$candidate" | sed 's/^[[:space:]]*export[[:space:]]\+//')"
-            export BUDDYPRO_API_KEY BUDDYPRO_INSTANCE_TOPIC 2>/dev/null
             DISCOVERED_AT="$candidate"
+            DISCOVERED_KEY=$(grep -E "^[[:space:]]*(export[[:space:]]+)?BUDDYPRO_API_KEY=" "$candidate" | head -1 | sed -E 's/^[[:space:]]*(export[[:space:]]+)?BUDDYPRO_API_KEY=//' | tr -d '"' | tr -d "'")
+            echo "DISCOVERED_EXISTING_KEY_AT=$DISCOVERED_AT"
             break
         fi
     done
 fi
 
-# 3) Readiness assessment
-[ -z "${BUDDYPRO_API_KEY:-}" ] && echo "MISSING_API_KEY"
-[ -z "${BUDDYPRO_INSTANCE_TOPIC:-}" ] && echo "MISSING_TOPIC"
-command -v curl >/dev/null || echo "MISSING_CURL"
-
-# 4) If we DISCOVERED a key in a fallback location (not state.env), promote it
-if [ -n "${BUDDYPRO_API_KEY:-}" ] && [ "${DISCOVERED_AT:-}" != "state.env" ] && [ ! -f "$STATE_FILE" ]; then
-    echo "DISCOVERED_EXISTING_SETUP_AT=$DISCOVERED_AT"
-fi
-
-# 5) Marker check — onboarding ceremony was completed at some point?
+# 4) Readiness summary
+echo "INSTANCE_COUNT=$INSTANCE_COUNT"
+echo "DEFAULT_INSTANCE=$DEFAULT_SLUG"
 [ -f "$ONBOARDED_MARKER" ] && echo "MARKER_PRESENT" || echo "MARKER_MISSING"
+command -v curl >/dev/null || echo "MISSING_CURL"
+command -v python3 >/dev/null || echo "MISSING_PYTHON3"
 ```
 
 **Decision matrix based on output:**
 
 | Output combination | Interpretation | Action |
 |---|---|---|
-| All 3 vars present + `MARKER_PRESENT` | ✅ Fully onboarded, full ceremony done | **SKIP everything.** No privacy warning, no questions. Go to active-assistant mode and answer the user's task. |
-| All 3 vars present + `DISCOVERED_EXISTING_SETUP_AT=...` + `MARKER_MISSING` | ✅ User already has working setup elsewhere, this Claude Code install is fresh | **Auto-promote**: write `state.env`, create `.onboarded` marker, briefly tell user *„Found your existing BuddyPro setup at `[path]`. Topic: `[topic]`. Skipping onboarding."* Then go straight to their task. **Do NOT show privacy warning** — they already passed onboarding in a previous session. |
-| `MISSING_API_KEY` or `MISSING_TOPIC` + `MARKER_MISSING` | True first-time install on this machine | Load `references/getting-started.md` and run the FULL 4-step onboarding (Step 0 privacy warning → Step 1 key → Step 2 verify → Step 3 confirm + state.env write + marker). |
-| `MISSING_CURL` | Environment lacks curl | Tell user — install curl, then retry. |
-| User explicitly says „reset onboarding" / „forget my setup" / „start over" | Manual reset request | Run reset procedure (below), then re-run full onboarding. |
+| `INSTANCE_COUNT≥1` + `MARKER_PRESENT` | ✅ Fully onboarded, multi-instance store ready | **SKIP onboarding entirely.** Resolve which instance is active (see "Active-instance resolution" below). Load that instance's API key + name + topic into env. Go to active-assistant mode. |
+| `MIGRATION_NEEDED` | Legacy v0.10.x state.env exists, no instances.json | Run the Python migrator from `references/getting-started.md` § Migration. After migration completes (creates instances.json with 1 instance), proceed as if fully onboarded. |
+| `INSTANCE_COUNT=0` + `DISCOVERED_EXISTING_KEY_AT=...` | Fresh Claude Code install but user has key in some `.env` | Auto-promotion path — see `references/getting-started.md` § "Auto-promotion: existing key found, no marker". Probe the key to extract bot name + topic, build instances.json with 1 entry, write per-instance slash command, inject into description. Skip privacy warning (already acknowledged in prior session). |
+| `INSTANCE_COUNT=0` + `MARKER_MISSING` + no fallback key | True first-time install on this machine, no prior setup anywhere | Load `references/getting-started.md` and run the FULL 5-step onboarding (privacy warning → Step 0 test profile → Step 1 key → Step 2 verify → Step 3 capture name+topic+state). |
+| `MISSING_CURL` or `MISSING_PYTHON3` | Environment lacks dependencies | Tell user — install missing dep, then retry. Both are needed (curl for API calls, python3 for instances.json + Step 3 atomic write). |
+| User says „reset onboarding" / „forget my setup" / „start over" | Manual reset request | Run reset procedure (in `getting-started.md` § Reset modes). Per-instance or full-wipe based on user's exact phrasing. |
+| User says „add another instance" / „new BuddyPro" / „další bot" | Add-instance request | Run getting-started.md Steps 0→3 again (skip privacy warning + 4-line briefing — already known). Append to instances.json. |
+| User says „switch to [name]" / „use [name] instance" | Switch active instance for THIS conversation | Set runtime variable; do NOT change `default_instance` in instances.json unless user explicitly says „set as default". |
 
-🔴 **Critical UX rule — privacy warning is ONE-SHOT.** It's part of Step 0 of onboarding. After `state.env` is written, the warning has been seen and acknowledged. **Never re-surface it on subsequent invocations.** Repeating it on every session = annoying noise + makes the user think the skill thinks it knows nothing about them. The state file presence = warning was acknowledged at onboarding time.
+### Active-instance resolution (after `instances.json` is loaded)
 
-🔴 **State file is preserved across skill upgrades.** When you (or the user) re-install via INSTALL.md, the install procedure overwrites only the skill files (SKILL.md, references/, command). It does NOT touch `state.env` or `.onboarded`. So upgrading from v0.9.0 → v0.9.1 keeps the user onboarded.
+When user invokes the skill, decide WHICH instance to use:
 
-**Reset procedure** (when user explicitly says „reset onboarding" / „zapomeň můj klíč" / „start over"):
 ```bash
-rm -f "$HOME/.claude/skills/buddypro-owner-api/state.env"
-rm -f "$HOME/.claude/skills/buddypro-owner-api/.onboarded"
+# Pseudo-logic — runs each invocation after onboarding check passed
+ACTIVE_SLUG=""
+
+# 1) If invoked via slug-specific slash command (/online-strateg, /buddypro-ai, etc.) → use that slug
+#    The slash command file's body says "set the active instance to slug `xyz`" — agent reads it.
+
+# 2) If invoked via /buddypro-api → use default_instance
+[ -z "$ACTIVE_SLUG" ] && ACTIVE_SLUG="$DEFAULT_SLUG"
+
+# 3) If user message mentions an instance NAME → match (case-insensitive substring) against instances[*].name
+#    If exactly one match → use it. If multiple matches → ask user.
+
+# 4) Load that instance's data
+python3 - <<PY
+import json, os, sys
+data = json.load(open(os.environ['HOME'] + '/.claude/skills/buddypro-owner-api/instances.json'))
+slug = "$ACTIVE_SLUG"
+if slug not in data['instances']:
+    print(f"ERROR: slug '{slug}' not in instances.json", file=sys.stderr); sys.exit(1)
+inst = data['instances'][slug]
+# Print export lines for shell to eval
+print(f"export BUDDYPRO_API_KEY={inst['api_key']!r}")
+print(f"export BUDDYPRO_INSTANCE_NAME={inst['name']!r}")
+print(f"export BUDDYPRO_INSTANCE_TOPIC={inst['topic']!r}")
+print(f"export BUDDYPRO_ACTIVE_SLUG={slug!r}")
+PY
 ```
-Then re-run full onboarding from Step 0.
+
+🔴 **Privacy warning is ONE-SHOT per user, not per instance.** Once `instances.json` has any entry with `privacy_warning_acknowledged=true`, never show the warning again — even when adding another instance. Repeating it = annoying noise.
+
+🔴 **State files are preserved across skill upgrades.** INSTALL.md `cp` overwrites SKILL.md, references/, command/, VERSION, CHANGELOG.md. It does NOT touch `instances.json`, `.onboarded`, `state.env` (legacy), `.last_version_check`, `.pinned_version`. INSTALL.md post-install hook re-injects instance names into the new SKILL.md description so auto-trigger keeps firing on user-specific names.
+
+**Reset & remove-instance procedures** are in `references/getting-started.md` § Reset modes. Quick summary:
+
+| User intent | What gets removed |
+|---|---|
+| „reset onboarding" with 1 instance | Full reset (instances.json, .onboarded, that instance's slash command, .last_version_check) |
+| „reset onboarding" with 2+ instances | Ask which one to remove; or „reset all" for full wipe |
+| „remove instance [name]" | Just that one entry from instances.json + its slash command file |
+| „reset all instances" | Full wipe (all instances.json entries, all `is_ours()` slash commands, all markers) |
 
 ## 🔗 Google Drive integration check (high-value bonus)
 
@@ -270,50 +301,31 @@ If detected → load `references/deep-research-architecture.md` for the branch &
 
 | User wants to... | Read this file |
 |------------------|----------------|
-| **First-time setup, missing API key, mental model briefing** | `references/getting-started.md` |
+| **First-time setup, missing API key, mental model briefing, ADD/LIST/REMOVE instance, multi-instance management** | `references/getting-started.md` |
 | **Choose right combination of `user` / saveToHistory / systemPrompt** | `references/api-features-deep-dive.md` |
 | **Build comprehensive multi-perspective research document (sub-skill — entry point)** | `references/deep-research-architecture.md` |
 | Pick topology pattern for deep research forks (KRUH, HLOUBKA, ŠÍŘKA, INVERZE, ...) | `references/deep-research-topologies.md` |
 | Match user request to deep-research scenario (universal how-to / person+product / comparative / tiered / content / audit / single-principle) | `references/deep-research-scenarios.md` |
 | Run EXHAUSTIVE 8-phase deep research blueprint or implement orchestration code | `references/deep-research-blueprints.md` |
+| **Find the right Google Drive folder for an instance** (gotcha — bot doesn't know its own folder) | `references/instance-management.md` § "Finding the BuddyPro folder" |
 | Make a basic API call (text in, text out) | `references/api-reference.md` |
 | Pick the right pattern for their use case | `references/use-cases.md` |
 | Get ready-to-paste Python/Node/curl code | `references/code-recipes.md` |
-| Serve multiple end-users (SaaS embedding) | `references/multi-tenancy.md` |
+| Serve multiple end-users (clarify privacy first — see warning section) | `references/multi-tenancy.md` |
 | Run `/update`, `/investigateAnswer:`, etc. via API | `references/management-commands.md` |
-| Manage knowledge / system prompt / voice / roles | `references/instance-management.md` |
-| Debug an error / rate limit / strange response | `references/troubleshooting.md` |
+| Manage knowledge / system prompt / voice / roles / Drive folder | `references/instance-management.md` |
+| Debug an error / rate limit / strange response / clarifying-questions issue | `references/troubleshooting.md` |
 | Find the right official docs page | `references/docs-references.md` |
 
-## Core mental model — read this once
+## Core mental model
 
-The Owner API looks like OpenAI Chat Completions but behaves differently in 3 critical ways:
+→ See `references/getting-started.md` § "STEP 3 — Capture instance NAME + TOPIC, write state, brief mental model + 3 demo prompts" for the full 4-line mental model briefing (server holds conversation; `user` field = sub-profile within owner's account; stateless mode for one-offs; rate-limit + cost + latency).
 
-### 1. Server holds the conversation. Never send history.
-
-Stock OpenAI: client sends all prior turns each call. **BuddyPro: server remembers everything.** Send only the current user message:
-
-```json
-{ "messages": [{ "role": "user", "content": "co bylo včera?" }] }
-```
-
-Sending prior turns = duplicate context = wasted tokens + confused model. This is the single most common mistake.
-
-### 2. The `user` field = sub-profile WITHIN your account, not a tenant boundary.
-
-| Request | Where conversation goes |
-|---------|-------------------------|
-| No `user` field | The generating Telegram profile (= whichever profile ran `/generateApiKey`; should be a `/test` profile, not your real one) |
-| `"user": "label-x"` (first time) | New sub-profile `label-x` *inside the same account* — isolated memory from other sub-profiles |
-| `"user": "label-x"` (later) | Same sub-profile, full memory continuity |
-
-🔴 **`user` is a label, not a privacy boundary.** All sub-profiles created via your API key are still YOUR data on YOUR account — the owner has full read access to all of them. This is fine for owner-direct automations, internal tools, batch evaluations, deep research sessions, or trusted teams. It is NOT a SaaS multi-tenancy primitive. For serving paying customers as a SaaS, wait for the upcoming End User API. (Full warning at top of this file.)
-
-Without `user`, every call writes to the generating profile's chat history and memory — which is why Step 0 of onboarding switches to a `/test:apitest` profile before generating the key.
-
-### 3. Stateless mode exists for one-offs.
-
-`"x_buddy_saveToHistory": false` → nothing persists. No history, no memory, no profile changes. The AI still answers using existing context. Use for evaluation, batch Q&A, or anything that shouldn't pollute a profile.
+The 4 facts are repeated here in summary form for fresh agents who don't load getting-started.md:
+1. **Server holds the conversation.** Send only current user message; bot remembers prior turns.
+2. **`user` field = sub-profile within owner's account, NOT tenant boundary.** Full SaaS warning above.
+3. **`x_buddy_saveToHistory: false` = stateless.** No memory, no history, no profile changes.
+4. **Limits: 30 req/min/key, ~$0.05/call, 15-25s cold start, 3-8s warm.** 4 commands stay in Telegram (`/generateApiKey`, `/invalidateApiKey`, `/test`, `/untest`); the rest work via API.
 
 ## Decision tree — when user asks „how do I X"
 
@@ -399,9 +411,11 @@ The skill's API key controls a **real production BuddyPro instance with real use
 
 If you encounter a slash command not in the risk matrix, treat it as 🟠 by default and ask the user what it does before executing.
 
-*Version: 0.10.0 — see VERSION file*
+*Version: 0.11.0 — see VERSION file*
 
-*v0.10.0 sub-skill split + instance alias auto-trigger + fresh-agent TL;DR + force-update slash command (2026-05-08): MAJOR refactoring release. Sub-skills: `deep-research-architecture.md` (1465 → 779 lines, entry point) + 3 new sub-skills `deep-research-topologies.md` (216 lines, 8 question patterns) + `deep-research-scenarios.md` (258 lines, 7 scenario adaptations) + `deep-research-blueprints.md` (317 lines, 8-phase pipeline + implementation code skeleton). Instance alias auto-trigger: onboarding now asks 2 explicit questions (instance NAME + topic), saves both to state.env (BUDDYPRO_INSTANCE_NAME + BUDDYPRO_INSTANCE_TOPIC), injects user's instance name into local SKILL.md description (so Claude Code auto-trigger fires when user mentions e.g. „Online Strateg" not just „BuddyPro"), creates per-instance slash command alias (e.g. `/online-strateg`), persists alias list to `.instance-aliases` file. INSTALL.md post-install hook re-applies alias injection after every auto-update so custom description survives skill upgrades. Fresh-agent 30-second TL;DR added to top of SKILL.md (7 critical facts that prevent ~80% of mistakes). New `/buddypro-api-update` slash command for force-update bypassing 4h cache TTL. Quick reference table in SKILL.md now routes to the right sub-skill based on user need.*
+*v0.11.0 multi-instance support + comprehensive audit fix release (2026-05-08): MAJOR storage schema change. Single source of truth migrated from `state.env` → `instances.json` (auto-migrated on first invocation, no user action needed). User can now have N BuddyPro instances; each entry in instances.json has own bapi_ key + name + topic + slug. New slash commands `/buddypro-add-instance` + `/buddypro-list-instances`. Per-instance slash commands auto-created with collision detection (won't overwrite /init etc). Active-instance resolution at every invocation: slug-specific slash command → default → name match in user message → ask if ambiguous. Fixed all 18 audit findings: K1 description leakage (no more hardcoded „Online Strateg" etc in distributable description), K2 heredoc placeholder bug (Python helper with env-var passing eliminates shell-injection from instance names with apostrophes/diacritics/ampersands), K3 missing INSTANCE_NAME export + migration logic, K4 `/buddypro-api-update` explicit bash, K5 unified „5-step onboarding" naming. Major: M2 slash command collision detection (`is_ours()` predicate), M3 unicodedata.normalize for slug generation, M4 agent-side question instead of bash `read -p`, M5 reset cleanup also wipes per-instance slash commands + injection markers, M6 python3 fallback handling (manifest declares it, INSTALL.md post-hook prints SKIPPED state, SKILL.md self-check explicit MISSING_PYTHON3), M7 post-install hook output documented. Minor: N1 sub-skill footers v0.11.0, N2 Quick ref Drive entry, N3 mental model deduplicated (single source = getting-started.md, SKILL.md just summarizes), N4 verify-before-save in Step 2, N5 CHANGELOG.md entry, N6 naming consistency.*
+
+*v0.10.0 sub-skill split + instance alias auto-trigger + fresh-agent TL;DR + force-update slash command (2026-05-08): MAJOR refactoring release. Sub-skills: `deep-research-architecture.md` (1465 → 779 lines, entry point) + 3 new sub-skills `deep-research-topologies.md` (216 lines, 8 question patterns) + `deep-research-scenarios.md` (258 lines, 7 scenario adaptations) + `deep-research-blueprints.md` (317 lines, 8-phase pipeline + implementation code skeleton). Instance alias auto-trigger: onboarding now asks 2 explicit questions (instance NAME + topic), saves both to state.env (BUDDYPRO_INSTANCE_NAME + BUDDYPRO_INSTANCE_TOPIC), injects user's instance name into local SKILL.md description, creates per-instance slash command alias, persists alias list to `.instance-aliases` file. INSTALL.md post-install hook re-applies alias injection. Fresh-agent 30-second TL;DR added to top of SKILL.md. New `/buddypro-api-update` slash command. Quick reference table now routes to the right sub-skill.*
 
 *v0.9.3 MASTER PATTERN promoted as default + anti-clarification propagated + standalone CHANGELOG.md (2026-05-08): `deep-research-architecture.md` Scenario 1 (Universal how-to) now leads with MASTER PATTERN (3 forks × 6-8 turns × different topology × different role) as the default pipeline (old 7-phase Type B+A hybrid relegated to fallback for very narrow topics); Optimal Blueprint section now leads with MASTER PATTERN (18-24 calls / $0.90-1.20 / 3-5 min — empirically validated 2026-05-08 at 18 calls / 6289 words / 1.5-2.9% cross-fork sim) and presents the exhaustive 6-stage variant as secondary; anti-clarification directive code skeleton now visible in `use-cases.md` X3 + A2 (callers see it at point of use, not just in architecture file); `troubleshooting.md` adds gotcha „Bot is asking clarifying questions instead of answering" with directive + curl example; standalone `CHANGELOG.md` created so update notifications can fetch only the relevant entry; auto-update Step 0 now fetches CHANGELOG.md after install and surfaces 3-5 word summary lines per update.*
 

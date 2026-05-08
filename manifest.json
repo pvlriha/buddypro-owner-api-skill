@@ -1,7 +1,7 @@
 {
   "name": "buddypro-owner-api",
-  "version": "0.10.0",
-  "description": "Claude Code skill for integrating with BuddyPro Owner API",
+  "version": "0.11.0",
+  "description": "Claude Code skill for integrating with BuddyPro Owner API. Multi-instance support: a user can have N BuddyPro instances, each with own key, name, topic, slug, and slash command.",
   "author": "pvlriha",
   "license": "MIT",
   "files": {
@@ -23,11 +23,13 @@
     "skill/references/troubleshooting.md": "$HOME/.claude/skills/buddypro-owner-api/references/troubleshooting.md",
     "skill/references/docs-references.md": "$HOME/.claude/skills/buddypro-owner-api/references/docs-references.md",
     "command/buddypro-api.md": "$HOME/.claude/commands/buddypro-api.md",
-    "command/buddypro-api-update.md": "$HOME/.claude/commands/buddypro-api-update.md"
+    "command/buddypro-api-update.md": "$HOME/.claude/commands/buddypro-api-update.md",
+    "command/buddypro-add-instance.md": "$HOME/.claude/commands/buddypro-add-instance.md",
+    "command/buddypro-list-instances.md": "$HOME/.claude/commands/buddypro-list-instances.md"
   },
   "dependencies": {
     "curl": "any version (default on macOS, Linux, Windows 10+)",
-    "python3": "any version (default on macOS, Linux; for SKILL.md description injection in onboarding/install hooks)"
+    "python3": "3.6+ (default on macOS 12+ and most Linux; required for instances.json read/write, Step 3 atomic write, post-install description injection, multi-instance management)"
   },
   "install_url": "https://docs.buddypro.ai/skill",
   "repo": "https://github.com/pvlriha/buddypro-owner-api-skill"

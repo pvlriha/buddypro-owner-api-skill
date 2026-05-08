@@ -40,6 +40,8 @@ files=(
   "skill/references/docs-references.md:skill/references/docs-references.md"
   "command/buddypro-api.md:command/buddypro-api.md"
   "command/buddypro-api-update.md:command/buddypro-api-update.md"
+  "command/buddypro-add-instance.md:command/buddypro-add-instance.md"
+  "command/buddypro-list-instances.md:command/buddypro-list-instances.md"
 )
 
 for entry in "${files[@]}"; do
@@ -58,44 +60,61 @@ cp "$TMP/VERSION" "$DEST_SKILL/VERSION"
 cp "$TMP/CHANGELOG.md" "$DEST_SKILL/CHANGELOG.md"
 cp "$TMP/skill/SKILL.md" "$DEST_SKILL/SKILL.md"
 cp "$TMP/skill/references/"*.md "$DEST_SKILL/references/"
-cp "$TMP/command/buddypro-api.md" "$DEST_CMD/buddypro-api.md"
-cp "$TMP/command/buddypro-api-update.md" "$DEST_CMD/buddypro-api-update.md"
+cp "$TMP/command/"*.md "$DEST_CMD/"
 
 # Sanity check — detect placeholder/stub references (under 500 bytes)
 STUB_COUNT=$(find "$DEST_SKILL/references" -name "*.md" -size -500c 2>/dev/null | wc -l | tr -d ' ')
 INSTALLED_VERSION=$(cat "$DEST_SKILL/VERSION")
 
 # Onboarding state preservation check — these files survive update if they existed before
-[ -f "$DEST_SKILL/state.env" ] && echo "ONBOARDING_STATE_PRESERVED=yes" || echo "ONBOARDING_STATE_PRESERVED=no_prior_state"
+[ -f "$DEST_SKILL/instances.json" ] && echo "ONBOARDING_STATE_PRESERVED=yes (instances.json)" || (
+    [ -f "$DEST_SKILL/state.env" ] && echo "ONBOARDING_STATE_PRESERVED=yes (legacy state.env — will be migrated on next invocation)" || echo "ONBOARDING_STATE_PRESERVED=no_prior_state"
+)
 [ -f "$DEST_SKILL/.onboarded" ] && echo "ONBOARDING_MARKER_PRESERVED=yes" || echo "ONBOARDING_MARKER_PRESERVED=no_prior_marker"
 
-# Post-install hook — re-inject instance name into SKILL.md description
-# (every update overwrites SKILL.md, so we need to re-apply the user's instance alias)
-if [ -f "$DEST_SKILL/.instance-aliases" ]; then
-    INSTANCE_ALIASES=$(cat "$DEST_SKILL/.instance-aliases" 2>/dev/null)
-    if [ -n "$INSTANCE_ALIASES" ]; then
-        python3 - <<PY
-import re
-skill_md = "$DEST_SKILL/SKILL.md"
-aliases = """$INSTANCE_ALIASES""".strip().split('\n')
-try:
-    with open(skill_md, encoding='utf-8') as f:
-        content = f.read()
-    m = re.search(r'^description:\s*"([^"]+)"', content, re.MULTILINE)
-    if m:
-        old = m.group(1)
-        names_to_add = [a for a in aliases if a and a not in old]
-        if names_to_add:
-            joined = ", ".join(names_to_add)
-            new = old.rstrip(' .') + f", {joined} (user's instance names)."
-            content = content.replace(f'description: "{old}"', f'description: "{new}"', 1)
-            with open(skill_md, 'w', encoding='utf-8') as f:
-                f.write(content)
+# Post-install hook — re-inject ALL instance names into SKILL.md description
+# Every update overwrites SKILL.md, so we re-apply the user's per-install customization.
+# Source of truth: instances.json (v0.11.0+) → all instance.name values; or legacy .instance-aliases (v0.10.x).
+if command -v python3 >/dev/null 2>&1; then
+    python3 - <<'PY'
+import os, json, re
+from pathlib import Path
+sd = Path(os.environ['HOME']) / '.claude/skills/buddypro-owner-api'
+skill_md = sd / 'SKILL.md'
+inst_json = sd / 'instances.json'
+legacy_aliases = sd / '.instance-aliases'
+
+names = []
+if inst_json.exists():
+    try:
+        data = json.loads(inst_json.read_text())
+        names = sorted({i.get('name', '').strip() for i in data.get('instances', {}).values() if i.get('name')})
+    except Exception as e:
+        print(f"INSTANCES_JSON_READ_FAILED={e}")
+elif legacy_aliases.exists():
+    names = [n.strip() for n in legacy_aliases.read_text().splitlines() if n.strip()]
+
+if not names or not skill_md.exists():
+    print("INSTANCE_ALIASES_REAPPLY_SKIPPED=no-names-or-no-SKILL.md")
+else:
+    try:
+        c = skill_md.read_text(encoding='utf-8')
+        # Strip any prior auto-injected block, then re-add
+        c = re.sub(r' AUTO-INJECTED-INSTANCE-NAMES:.*? :END-AUTO-INJECTED\.', '', c)
+        m = re.search(r'^description:\s*"([^"]+)"', c, re.MULTILINE)
+        if m:
+            old = m.group(1)
+            joined = ', '.join(names)
+            new = old.rstrip(' .') + f". AUTO-INJECTED-INSTANCE-NAMES: {joined} :END-AUTO-INJECTED."
+            skill_md.write_text(c.replace(f'description: "{old}"', f'description: "{new}"', 1), encoding='utf-8')
             print(f"INSTANCE_ALIASES_REAPPLIED={joined}")
-except Exception as e:
-    print(f"INSTANCE_ALIAS_REAPPLY_FAILED={e}")
+        else:
+            print("INSTANCE_ALIASES_REAPPLY_FAILED=no-description-in-frontmatter")
+    except Exception as e:
+        print(f"INSTANCE_ALIAS_REAPPLY_FAILED={e}")
 PY
-    fi
+else
+    echo "INSTANCE_ALIASES_REAPPLY_SKIPPED=python3-missing"
 fi
 
 echo "INSTALLED_VERSION=$INSTALLED_VERSION"

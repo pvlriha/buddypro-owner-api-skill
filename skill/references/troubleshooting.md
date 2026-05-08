@@ -133,6 +133,26 @@ Outside HTTP layer:
 
 ## Content-level issues
 
+### "Instance name with apostrophe / ampersand / diacritics breaks something"
+
+**Symptoms:** instance name like „Pavel's AI" or „A&B Coach" or „Český kouč" — onboarding seems to write garbled state, slash command alias name is wrong, or shell errors fire during state file write.
+
+**Cause:** Old (pre-v0.11.0) onboarding code used bash heredocs with raw user content — single quotes, ampersands, multi-byte UTF-8 corrupted the write. v0.11.0 migrated all user-content writes to a Python helper that reads from env vars (env-var passing handles all escaping safely).
+
+**Fix:**
+- If you're on v0.11.0+ this should already work. The Python helper in `getting-started.md` § STEP 3 uses `unicodedata.normalize('NFKD')` for slug generation (strips diacritics for the slash command name) and writes name + topic verbatim into instances.json (UTF-8 preserved).
+- If you're somehow still seeing this on v0.11.0+, check that `python3` is available (`command -v python3`). The skill requires it for instances.json + Step 3 atomic write.
+- For multi-byte names like „Český kouč", the slug becomes `cesky-kouc` (diacritics stripped for ASCII-safe slash command); the human-readable `name` field in instances.json keeps the original „Český kouč".
+- Test: `BP_INSTANCE_NAME="Pavel's AI"` should produce slug `pavels-ai` without errors.
+
+### "Adding another instance — slash command name conflicts with existing one"
+
+**Symptoms:** User onboards instance named „init" or „buddypro" — Python helper detects collision and uses suffix `-2`.
+
+**Cause:** Built-in slash commands (`/init`, `/handover`, `/lekce`, etc.) and user's existing aliases shouldn't be overwritten. Helper checks: if `~/.claude/commands/[slug].md` exists AND it doesn't start with „# Alias for /buddypro-api" → it's not ours → bump suffix.
+
+**Fix:** No fix needed — this is the designed behavior. User gets `/init-2` instead of `/init`. If user wants the bare slug, they need to rename/remove the conflicting command first, then run `/buddypro-list-instances` → „remove instance [name]" → then `/buddypro-add-instance` again.
+
 ### "Bot is asking clarifying questions instead of answering"
 
 **Symptoms:** Owner asks something like *„udělej mi průzkum o vysoce ziskových webinářích"* and the bot replies *„Pojďme se nejdřív zorientovat — jaký je tvůj cíl? Pro koho to píšeš?"* instead of giving frameworks. Especially common for short or generic prompts. Especially destructive in batch eval and deep research where 30-50% of returned content is clarification noise.

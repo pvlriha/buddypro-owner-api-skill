@@ -314,4 +314,4 @@ Memory note: each Type A/C branch creates a `user` profile. Profiles persist (no
 > - Topology library: [`deep-research-topologies.md`](./deep-research-topologies.md)
 > - Scenario adaptations: [`deep-research-scenarios.md`](./deep-research-scenarios.md)
 
-*Last updated: 2026-05-08 (v0.9.4 — extracted as sub-skill from monolithic deep-research-architecture.md)*
+*Last updated: 2026-05-08 (v0.11.0 — multi-instance support release from monolithic deep-research-architecture.md)*

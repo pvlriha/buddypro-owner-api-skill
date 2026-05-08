@@ -255,4 +255,4 @@ This block becomes part of the synthesis prompt: „Using these insights from th
 > - Topology library (which patterns to assign per fork): [`deep-research-topologies.md`](./deep-research-topologies.md)
 > - Default blueprints (MASTER PATTERN + exhaustive variant): [`deep-research-blueprints.md`](./deep-research-blueprints.md)
 
-*Last updated: 2026-05-08 (v0.9.4 — extracted as sub-skill from monolithic deep-research-architecture.md)*
+*Last updated: 2026-05-08 (v0.11.0 — multi-instance support release from monolithic deep-research-architecture.md)*
