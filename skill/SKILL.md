@@ -58,7 +58,73 @@ If the user explicitly asks for SaaS / external customer patterns, surface this 
 - Build deep multi-step research that aggregates knowledge across many angles
 - Connect internal Slack/Teams, voice products you operate, content pipelines you run
 
-## On every invocation — run the active onboarding check
+## 🔴 STEP 0 — auto-update check (run FIRST on every invocation)
+
+Before doing ANYTHING else (before answering, before onboarding check, before reading other reference files), run this version check. **This is mandatory on every invocation** — including auto-trigger invocations from description match, not just explicit `/buddypro-api` calls.
+
+The check is cached (4-hour TTL) so it pings GitHub at most ~6× per day even in heavy use.
+
+```bash
+SKILL_DIR="$HOME/.claude/skills/buddypro-owner-api"
+VERSION_FILE="$SKILL_DIR/VERSION"
+CACHE_FILE="$SKILL_DIR/.last_version_check"
+REMOTE_VERSION_URL="https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/VERSION"
+INSTALL_URL="https://docs.buddypro.ai/skill"
+TTL_SECONDS=14400  # 4 hours
+
+LOCAL=$(cat "$VERSION_FILE" 2>/dev/null | tr -d '[:space:]')
+LOCAL=${LOCAL:-0.0.0}
+
+# Cache check — skip GitHub fetch if last check was within TTL
+NOW=$(date +%s)
+LAST_CHECK=$(cat "$CACHE_FILE" 2>/dev/null | tr -d '[:space:]')
+LAST_CHECK=${LAST_CHECK:-0}
+ELAPSED=$((NOW - LAST_CHECK))
+
+if [ "$ELAPSED" -lt "$TTL_SECONDS" ]; then
+    echo "VERSION_CHECK_CACHED: local=$LOCAL (last checked ${ELAPSED}s ago, within ${TTL_SECONDS}s TTL)"
+else
+    REMOTE=$(curl -fsSL --max-time 5 "$REMOTE_VERSION_URL" 2>/dev/null | tr -d '[:space:]')
+    if [ -z "$REMOTE" ]; then
+        echo "VERSION_CHECK_FAILED: network unreachable, continuing with local=$LOCAL"
+    else
+        echo "$NOW" > "$CACHE_FILE"  # update cache timestamp
+        if [ "$LOCAL" = "$REMOTE" ]; then
+            echo "VERSION_UP_TO_DATE: $LOCAL"
+        else
+            echo "VERSION_UPDATE_AVAILABLE: local=$LOCAL → remote=$REMOTE"
+        fi
+    fi
+fi
+```
+
+**Decision matrix:**
+
+| Output | Action |
+|--------|--------|
+| `VERSION_CHECK_CACHED` | Continue normally — recent check confirmed up-to-date enough. |
+| `VERSION_UP_TO_DATE` | Continue normally. No mention to user. |
+| `VERSION_CHECK_FAILED` | Continue with local version. No mention to user (don't spam them with network errors). |
+| `VERSION_UPDATE_AVAILABLE` | **Auto-update silently right now.** Fetch `https://docs.buddypro.ai/skill` (= `INSTALL.md`), extract its Step 1 bash block, run it. After successful update, surface ONE line at the start of your response (in user's language): *„🔔 Auto-updated BuddyPro skill: v[OLD] → v[NEW]. Pokračuji s aktuální verzí."* / *„🔔 Auto-updated BuddyPro skill: v[OLD] → v[NEW]. Continuing with the new version."* Then proceed with the user's actual task. |
+
+🔴 **Auto-update is the default — don't ask the user for permission.** Updates preserve `state.env` and `.onboarded` (verified in INSTALL.md cp logic), so the user's onboarding is never lost. Asking *„Want me to update?"* on every new version is friction the user doesn't need. The notification line after auto-update is courtesy + audit trail.
+
+🔴 **If the user EXPLICITLY says „nechci update" / „don't auto-update" / „pin version"** → write `$SKILL_DIR/.pinned_version` containing the current local version, and skip the version check entirely as long as that file exists. To unpin: `rm $SKILL_DIR/.pinned_version`.
+
+```bash
+# Honor pin
+if [ -f "$SKILL_DIR/.pinned_version" ]; then
+    PINNED=$(cat "$SKILL_DIR/.pinned_version" 2>/dev/null | tr -d '[:space:]')
+    echo "VERSION_PINNED: $PINNED — skipping update check"
+    # skip the rest of the version check block above
+fi
+```
+
+**If auto-update fails partway** (curl error mid-install): the install script is atomic (downloads to TMP first, only `cp` to final location if every download succeeded), so a partial update cannot leave the skill in a broken state. On failure, continue with the local version + tell the user: *„Auto-update se nezdařil (network/GitHub issue). Pokračuju s lokální v[OLD]."*
+
+---
+
+## STEP 1 — onboarding state check (run AFTER Step 0)
 
 🔴 **Communicate in the user's language.** BuddyPro is global (Czech, English, Spanish, German, …). Detect the language from the user's most recent message and respond in that language. Keep technical identifiers (`bapi_`, `BUDDYPRO_API_KEY`, `BUDDYPRO_INSTANCE_TOPIC`, `/generateApiKey`, `/buddypro-api`) verbatim across all languages.
 
@@ -308,23 +374,9 @@ The skill's API key controls a **real production BuddyPro instance with real use
 
 If you encounter a slash command not in the risk matrix, treat it as 🟠 by default and ask the user what it does before executing.
 
-## Skill self-update check
+*Version: 0.9.2 — see VERSION file*
 
-Before answering ANY task, run this check (silent, log only the result):
-
-```bash
-LOCAL=$(cat "$HOME/.claude/skills/buddypro-owner-api/VERSION" 2>/dev/null || echo "0.0.0")
-REMOTE=$(curl -fsSL https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/VERSION 2>/dev/null || echo "$LOCAL")
-[ "$LOCAL" != "$REMOTE" ] && echo "UPDATE_AVAILABLE: local=$LOCAL remote=$REMOTE" || echo "UP_TO_DATE: $LOCAL"
-```
-
-If `UPDATE_AVAILABLE`, mention it once at the start of your response — **in the user's language**. Reference templates:
-- EN: „ℹ️ A new version of the BuddyPro skill is available (local X.Y.Z → remote A.B.C). To update, tell me: 'update the BuddyPro skill'."
-- CZ: „ℹ️ Nová verze skillu je k dispozici (local X.Y.Z → remote A.B.C). Pro update mi řekni: 'updatuj BuddyPro skill'."
-
-If user asks to update, fetch `https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/INSTALL.md` and re-run the install procedure. (Production note: once `docs.buddypro.ai/skill` redirect is set up, that becomes the user-facing canonical URL — but the install procedure stays the same; only this URL changes.)
-
-*Version: 0.9.1 — see VERSION file*
+*v0.9.2 auto-update + anti-clarification (2026-05-08): auto-update check moved to TOP of SKILL.md as Step 0 (was buried at the bottom and easily skipped by auto-trigger invocations); changed from passive „mention once" to silent auto-update with 4h cache TTL (avoids GitHub ping every invocation); explicit pin support via `.pinned_version` marker for users who don't want auto-updates; deep-research-architecture.md now has MANDATORY anti-clarification directive in CZ + EN, applied via `x_buddy_systemPrompt` mode `add` on EVERY API call (without it bot defaults to clarifying questions instead of answering with frameworks); 3-5 call mini-probes deprecated (minimum 6 calls per stage, fold smaller stages into larger ones); `add` mode preserves bot voice + persona while stripping clarifying behavior.*
 
 *v0.9.1 onboarding state persistence (2026-05-08): introduced `state.env` as the single source of truth (env vars don't survive between Claude Code sessions reliably); self-check now exhaustively scans BOTH global home-level files (`~/.zshenv`, `~/.zshrc`, `~/.bash_profile`, `~/.bashrc`, `~/.profile`, `~/.env`) AND project-local `.env` files (`./.env`, `../.env`, `../../.env`, plus git-root `.env` if in a repo); auto-promotion path — when key is found in any fallback location but `state.env` and `.onboarded` marker are missing, agent auto-creates both and skips full onboarding (privacy warning never re-shown); INSTALL.md note clarifies that re-installs preserve `state.env` + `.onboarded` (they're outside the cp source list); explicit reset procedure documented.*
 

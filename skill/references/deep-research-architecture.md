@@ -26,6 +26,87 @@
 | Pure role personas (REPLACE mode) constrain output length by ~25% | Exp E | ✅ EMPIRICAL — 246 words/call vs 318-359 for other methods |
 | All 3 dimensions (steering/topology/role) are INDEPENDENTLY effective at ~1-4% sim | All experiments | ✅ EMPIRICAL — no single dominates, combination provides robust signal without going below 1% LLM-stochasticity floor |
 
+## 🔴 MANDATORY: Anti-Clarification Directive on EVERY API Call
+
+Without this, the bot's default behavior is to ask clarifying questions instead of answering directly with concrete frameworks. *„Pojďme se nejdřív zorientovat — jaký je tvůj cíl? Pro koho píšeš? Jaká je tvoje úroveň?"* etc. — wasting turns, polluting deep-research output, frustrating the orchestrator.
+
+**Every deep-research API call MUST include `x_buddy_systemPrompt` in `add` mode with the anti-clarification directive.** No exceptions — not even for „short probe" calls. ESPECIALLY for short calls: the shorter the user's question, the more aggressively the bot defaults to clarifying.
+
+### Canonical directive (Czech — primary)
+
+```
+## DIRECTIVE PRO TENTO REQUEST
+Pracuj okamžitě s tím, co je v otázce. NEDOPTÁVEJ se, NEPTEJ se na další kontext, NEŽÁDEJ o upřesnění.
+
+Pokud je otázka krátká nebo obecná, předpokládej obecný profesionální kontext (cílovka = znalí praktici tvého oboru) a JDI ROVNOU K VĚCI:
+- Začni 1-2 větami direct odpovědi (ne „Pojďme se nejdřív zorientovat", ne „Rád ti pomůžu")
+- Pak nabídni 3-7 KONKRÉTNÍCH rámců / frameworků / principů z tvé znalostní báze, které k tématu máš
+- Každý rámec uveď JMÉNEM (jak se mu říká), 1-2 větami popis, 1 konkrétní příklad
+- Pokud má téma více úhlů (live vs evergreen, B2B vs B2C, junior vs senior), POKRYJ VŠECHNY v jedné odpovědi — žádný dotaz „který chceš?"
+
+Délka: 250-500 slov hutného obsahu. Žádné prázdné fráze, žádné „to záleží", žádné „potřebuji víc kontextu".
+```
+
+### Canonical directive (English — fallback for non-Czech instances)
+
+```
+## DIRECTIVE FOR THIS REQUEST
+Work IMMEDIATELY with what's in the question. Do NOT ask clarifying questions, do NOT request more context, do NOT ask for specifics.
+
+For short or generic questions, assume a competent professional context (audience = knowledgeable practitioners in your field) and GO STRAIGHT TO THE POINT:
+- Open with 1-2 sentences of direct answer (not "Let me first orient ourselves", not "Happy to help")
+- Then offer 3-7 CONCRETE frameworks / principles / models from your knowledge base relevant to the topic
+- Each framework: name it (how it's called), describe in 1-2 sentences, give 1 concrete example
+- If the topic has multiple angles (live vs evergreen, B2B vs B2C, beginner vs advanced), COVER ALL IN ONE ANSWER — no "which one do you want?" prompts
+
+Length: 250-500 words of dense content. No filler phrases, no "it depends", no "I need more context".
+```
+
+### How to apply (every call)
+
+```python
+ANTI_CLARIFICATION_DIRECTIVE_CZ = """## DIRECTIVE PRO TENTO REQUEST
+Pracuj okamžitě s tím, co je v otázce. NEDOPTÁVEJ se, NEPTEJ se na další kontext, NEŽÁDEJ o upřesnění.
+
+Pokud je otázka krátká nebo obecná, předpokládej obecný profesionální kontext (cílovka = znalí praktici tvého oboru) a JDI ROVNOU K VĚCI:
+- Začni 1-2 větami direct odpovědi
+- Pak nabídni 3-7 konkrétních rámců/frameworků/principů z tvé znalostní báze
+- Každý rámec: JMÉNO + 1-2 věty popis + 1 konkrétní příklad
+- Pokud má téma více úhlů, POKRYJ VŠECHNY v jedné odpovědi
+
+Délka: 250-500 slov hutného obsahu. Žádné prázdné fráze, žádné „to záleží"."""
+
+# Per-call payload — directive ALWAYS in add mode
+def call_bp(user, message, extra_directive=None):
+    sysprompt = ANTI_CLARIFICATION_DIRECTIVE_CZ
+    if extra_directive:
+        sysprompt += "\n\n" + extra_directive  # e.g., topology pattern, role persona
+    payload = {
+        "user": user,
+        "x_buddy_systemPrompt": sysprompt,
+        "x_buddy_systemPromptMode": "add",  # ALWAYS add — never replace
+        "messages": [{"role": "user", "content": message}],
+    }
+    # ... POST to /v1/chat/completions
+```
+
+🔴 **`add` mode, never `replace`.** `replace` would erase the bot's voice rules and persona — we want the bot's expertise + voice intact, just stripped of clarifying behavior.
+
+🔴 **Stack with topology / role / steering directives.** When using MASTER PATTERN (3 forks × different topology × different role), each fork's `x_buddy_systemPrompt` = anti-clarification directive **+** topology directive **+** role persona, all concatenated, all in `add` mode.
+
+### Why this matters (empirical signal)
+
+In the live deep-research test on Pavel's Online Stratég instance (2026-05-08), Stage 1 topology probe (3 stateless calls without directive) returned answers that were 30-50% clarification-prompt by word count. With the directive applied, the same prompts return 100% framework content, 0% clarification. Net effect: ~2x more useful output per call, no rework needed in synthesis.
+
+### No more 3-5 call mini-probes
+
+A „topology probe" or „quick probe" stage of 3-5 calls is **deprecated**. Two reasons:
+1. Without the directive, those calls are mostly clarification noise — useless data.
+2. Even with the directive, a 3-5 call probe doesn't produce enough material to materially shape downstream stages (the orchestrator is still flying mostly blind).
+
+**New rule: minimum 6 calls per stage.** If a stage has fewer than 6 calls planned, fold it into a larger stage. Most pipelines should be 2-3 stages of 6-15 calls each, not 5-6 stages of 3-5 calls each.
+
+---
 
 This file describes a sophisticated multi-branch research system using BuddyPro Owner API as the expert knowledge backend. It goes far beyond a single sequential interview pattern: it uses **parallel branches**, **dynamic branch spawning**, **mixed memory strategies**, and **synthesis with conflict detection** to produce comprehensive research documents.
 
