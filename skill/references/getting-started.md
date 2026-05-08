@@ -93,28 +93,35 @@ curl -s -X POST https://api.buddypro.ai/v1/chat/completions \
 
 The bot's reply already TELLS YOU what the instance does — you just got the topic for free. **Don't ask the user to describe their instance separately.**
 
-### STEP 3 — Confirm topic + brief mental model + 3 demo prompts (~30 seconds)
+### STEP 3 — Capture instance NAME + TOPIC, write state, brief mental model + 3 demo prompts (~45 seconds)
 
-Use the bot's own answer to infer `BUDDYPRO_INSTANCE_TOPIC`. Confirm with one question:
+🔴 **Ask the user TWO explicit questions** (don't skip — both fields matter for auto-trigger):
 
-> *„Your bot says: „[exact bot answer]". I'll remember that as: „**[short topic phrase you extract from it]**". Sound right? (yes / clarify)"*
+> *„Dvě rychlé otázky, ať vím, jak na tu instanci odkazovat:*
+>
+> *1. **Jak se jmenuje tvoje instance?** (jak jí říkáš v konverzaci, např. „Online Strateg", „BuddyPro AI", „Pavel AI", atd.)*
+>
+> *2. **O čem je?** (jednou větou — koho učí, v čem pomáhá)"*
 
-If user says yes — write **persistent state file** (this is what survives across Claude Code sessions, not just env vars in shell profiles):
+Pre-fill the topic answer from the bot's own response (Step 2 stateless ping returned a 1-sentence specialty), so the user only needs to confirm or tweak. Pre-fill the name from the bot's response if it self-identifies (most BuddyPro bots open with „I'm [name]…"); otherwise ask explicitly.
+
+🔴 **Why both fields:** Once `BUDDYPRO_INSTANCE_NAME` is captured, the skill injects it into the local `SKILL.md` frontmatter description. From that point on, Claude Code's auto-trigger framework recognizes mentions of the instance name (not just „BuddyPro") and loads this skill. Topic provides context for tailoring suggestions; name provides the auto-trigger handle.
+
+Once both answers are in, write **persistent state file** (single source of truth across sessions):
 
 ```bash
 SKILL_DIR="$HOME/.claude/skills/buddypro-owner-api"
 STATE_FILE="$SKILL_DIR/state.env"
+ALIASES_FILE="$SKILL_DIR/.instance-aliases"
 
 mkdir -p "$SKILL_DIR"
 
-# Write state.env (single source of truth — survives every session)
 cat > "$STATE_FILE" <<EOF
 # BuddyPro Owner API — persistent state, written at onboarding
-# This file is auto-sourced by the skill every invocation.
-# Format: shell-style KEY=value (so 'source state.env' works).
-# Permissions: 0600 (owner-only read/write).
+# Auto-sourced by the skill every invocation. shell-style KEY=value. chmod 600.
 BUDDYPRO_API_KEY="$BUDDYPRO_API_KEY"
-BUDDYPRO_INSTANCE_TOPIC="<extracted topic>"
+BUDDYPRO_INSTANCE_NAME="<user's name for the instance, e.g. Online Strateg>"
+BUDDYPRO_INSTANCE_TOPIC="<one-sentence topic, e.g. marketingovy kouc pro online podnikatele>"
 ONBOARDED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 SKILL_VERSION_AT_ONBOARDING="$(cat "$SKILL_DIR/VERSION" 2>/dev/null || echo unknown)"
 TEST_PROFILE_USED="apitest"
@@ -122,18 +129,61 @@ PRIVACY_WARNING_ACKNOWLEDGED=1
 EOF
 chmod 600 "$STATE_FILE"
 
-# Create the ceremony-completed marker
+# Persist alias list (survives skill auto-updates — INSTALL.md post-hook re-injects from this)
+echo "$BUDDYPRO_INSTANCE_NAME" > "$ALIASES_FILE"
+chmod 600 "$ALIASES_FILE"
+
+# Ceremony marker
 touch "$SKILL_DIR/.onboarded"
 
-# Optional bonus: also export into user's shell profile (so external scripts/cron see it)
+# Inject instance name into local SKILL.md frontmatter description (for auto-trigger)
+python3 - <<PY
+import re, sys
+skill_md = "$SKILL_DIR/SKILL.md"
+name = "$BUDDYPRO_INSTANCE_NAME"
+try:
+    with open(skill_md, encoding='utf-8') as f:
+        content = f.read()
+    m = re.search(r'^description:\s*"([^"]+)"', content, re.MULTILINE)
+    if m and name and name not in m.group(1):
+        old = m.group(1)
+        new = old.rstrip(' .') + f", {name} (user's instance name)."
+        content = content.replace(f'description: "{old}"', f'description: "{new}"', 1)
+        with open(skill_md, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print(f"✓ Injected '{name}' into SKILL.md description for auto-trigger")
+except Exception as e:
+    print(f"(description injection skipped: {e})", file=sys.stderr)
+PY
+
+# Create per-instance slash command alias
+SLUG=$(echo "$BUDDYPRO_INSTANCE_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g' | head -c 40)
+if [ -n "$SLUG" ]; then
+    cat > "$HOME/.claude/commands/${SLUG}.md" <<EOF
+# Alias for /buddypro-api — instance: $BUDDYPRO_INSTANCE_NAME
+
+User invoked the skill via the instance-specific alias. Topic: $BUDDYPRO_INSTANCE_TOPIC.
+
+Load the skill 'buddypro-owner-api' from \$HOME/.claude/skills/buddypro-owner-api/SKILL.md and apply it to the user's request below. Run STEP 0 (auto-update check) and STEP 1 (state hydration) first per the skill's standard flow.
+
+\$ARGUMENTS
+EOF
+    echo "✓ Created /$SLUG slash command alias"
+fi
+
+# Optional bonus: also export topic + name into user's shell profile
 if [ "$SAVE_TO" = ".env" ]; then
-    echo "BUDDYPRO_INSTANCE_TOPIC=<extracted topic>" >> .env
+    echo "BUDDYPRO_INSTANCE_NAME=$BUDDYPRO_INSTANCE_NAME" >> .env
+    echo "BUDDYPRO_INSTANCE_TOPIC=<topic>" >> .env
 else
-    echo 'export BUDDYPRO_INSTANCE_TOPIC="<extracted topic>"' >> "$SAVE_TO"
+    echo "export BUDDYPRO_INSTANCE_NAME=\"$BUDDYPRO_INSTANCE_NAME\"" >> "$SAVE_TO"
+    echo "export BUDDYPRO_INSTANCE_TOPIC=\"<topic>\"" >> "$SAVE_TO"
 fi
 ```
 
-If user clarifies — save their version (replace `<extracted topic>` accordingly).
+After saving, tell the user:
+
+> *„✅ Hotovo. Teď, když v Claude Code zmíníš „[instance name]", skill se automaticky načte. Můžeš ho také ručně volat přes `/buddypro-api` nebo `/[slug-of-instance-name]`."*
 
 Then deliver this 4-line mental model briefing (translate to user's language):
 
@@ -190,31 +240,80 @@ The most common case after the very first install: the user already has `BUDDYPR
 **Don't run full onboarding in this case.** Instead, the active assistant should briefly auto-promote:
 
 ```bash
-# From the discovered key, quickly probe the bot to confirm topic
-TOPIC_PROBE=$(curl -s -X POST https://api.buddypro.ai/v1/chat/completions \
+# From the discovered key, quickly probe the bot — get its self-identification + topic
+PROBE=$(curl -s -X POST https://api.buddypro.ai/v1/chat/completions \
   -H "Authorization: Bearer $BUDDYPRO_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"x_buddy_saveToHistory": false, "messages": [{"role": "user", "content": "What is your specialty in one sentence?"}]}' \
+  -d '{"x_buddy_saveToHistory": false, "messages": [{"role": "user", "content": "What is your name and what is your specialty? One sentence each."}]}' \
   | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('choices',[{}])[0].get('message',{}).get('content',''))" 2>/dev/null)
 
-# Extract topic phrase from response, write state.env + marker
+# Try to extract instance NAME (from "I'm X..." pattern); fall back to asking user once
+INSTANCE_NAME=$(echo "$PROBE" | python3 -c "
+import sys, re
+text = sys.stdin.read()
+# Common self-intro patterns: 'I'm X', 'I am X', 'Jsem X', 'My name is X', 'Jmenuji se X'
+patterns = [r\"I'?m\s+([A-Z][\w\s]{1,30}?)[.,!]\", r\"Jsem\s+([A-Z][\w\s]{1,30}?)[.,!]\", r\"[Jj]menuji se\s+([A-Z][\w\s]{1,30}?)[.,!]\", r\"My name is\s+([A-Z][\w\s]{1,30}?)[.,!]\"]
+for p in patterns:
+    m = re.search(p, text)
+    if m:
+        print(m.group(1).strip()); break
+" 2>/dev/null)
+
+if [ -z "$INSTANCE_NAME" ]; then
+    # Couldn't extract — ask user once
+    echo "Bot říká: \"$PROBE\""
+    read -r -p "Jak té instanci říkáš? (jen jméno, např. Online Strateg): " INSTANCE_NAME
+fi
+
+INSTANCE_TOPIC=$(echo "$PROBE" | head -c 200)  # first sentence is usually the specialty
+
+# Write state.env + marker + alias file
 SKILL_DIR="$HOME/.claude/skills/buddypro-owner-api"
 mkdir -p "$SKILL_DIR"
 cat > "$SKILL_DIR/state.env" <<EOF
 BUDDYPRO_API_KEY="$BUDDYPRO_API_KEY"
-BUDDYPRO_INSTANCE_TOPIC="<extracted from TOPIC_PROBE>"
+BUDDYPRO_INSTANCE_NAME="$INSTANCE_NAME"
+BUDDYPRO_INSTANCE_TOPIC="$INSTANCE_TOPIC"
 ONBOARDED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ONBOARDED_VIA="auto-promotion-from-existing-env"
 DISCOVERED_FROM="$DISCOVERED_AT"
 PRIVACY_WARNING_ACKNOWLEDGED=1
 EOF
 chmod 600 "$SKILL_DIR/state.env"
+echo "$INSTANCE_NAME" > "$SKILL_DIR/.instance-aliases"
+chmod 600 "$SKILL_DIR/.instance-aliases"
 touch "$SKILL_DIR/.onboarded"
+
+# Inject instance name into local SKILL.md description for auto-trigger
+python3 - <<PY
+import re
+skill_md = "$SKILL_DIR/SKILL.md"
+name = "$INSTANCE_NAME"
+with open(skill_md, encoding='utf-8') as f:
+    content = f.read()
+m = re.search(r'^description:\s*"([^"]+)"', content, re.MULTILINE)
+if m and name and name not in m.group(1):
+    old = m.group(1)
+    new = old.rstrip(' .') + f", {name} (user's instance name)."
+    content = content.replace(f'description: "{old}"', f'description: "{new}"', 1)
+    with open(skill_md, 'w', encoding='utf-8') as f:
+        f.write(content)
+PY
+
+# Create per-instance slash command alias
+SLUG=$(echo "$INSTANCE_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g' | head -c 40)
+if [ -n "$SLUG" ]; then
+    cat > "$HOME/.claude/commands/${SLUG}.md" <<EOF
+# Alias for /buddypro-api — instance: $INSTANCE_NAME
+User invoked via instance-specific alias. Load 'buddypro-owner-api' skill, run Step 0 + Step 1, then proceed.
+\$ARGUMENTS
+EOF
+fi
 ```
 
 Then tell the user (in their language):
 
-> *„Našel jsem tvůj existující BuddyPro klíč v `[path]`. Bot říká, že je to: „[1-sentence response]". Jedu rovnou na tvůj task — pokud bys chtěl ladění (změnit téma, jiný klíč), řekni `reset onboarding`."*
+> *„Našel jsem tvůj existující BuddyPro klíč v `[path]`. Tvoje instance „[INSTANCE_NAME]" — [1-sentence specialty]. Auto-trigger je teď napojen i na jméno „[INSTANCE_NAME]" (zkus ho v další zprávě). Jedu rovnou na tvůj task — pokud bys chtěl ladění, řekni `reset onboarding`."*
 
 **Skip the privacy warning in auto-promotion.** A user with a working `bapi_` key in their `.env` has clearly already been through onboarding before — re-showing the warning is annoying noise. Privacy expectations only need to be set once.
 

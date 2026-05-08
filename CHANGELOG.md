@@ -2,6 +2,31 @@
 
 All notable changes documented per release. Format: human-readable, ordered newest first. Same content as the footer of `skill/SKILL.md`, but in a standalone file so update notifications can fetch only the relevant entry without parsing SKILL.md.
 
+## v0.10.0 — 2026-05-08
+
+**Sub-skill split + instance alias auto-trigger + fresh-agent TL;DR + force-update slash command. Major refactoring release.**
+
+- **Sub-skill split.** `deep-research-architecture.md` reduced from 1465 → 779 lines and now serves as the entry point. Three new sub-skill files extracted:
+  - `deep-research-topologies.md` (216 lines) — the 8 question topology patterns (KRUH, HLOUBKA, ŠÍŘKA, SPIRÁLA, STROM, ZIGZAG, INVERZE, META) + selection guidance per scenario + combining topologies within a single Type A branch.
+  - `deep-research-scenarios.md` (258 lines) — 7 scenario adaptations (universal how-to, person+product, comparative, audience-tiered, content draft, knowledge audit, single-principle exhaustive) + Track A external research integration.
+  - `deep-research-blueprints.md` (317 lines) — 8-phase pipeline, coordination & resource management, knowledge graph for synthesis, full Python implementation skeleton, branch-type decision tree, privacy & cost summary.
+  - SKILL.md Quick reference table now routes to the right sub-skill based on user need.
+
+- **Instance alias auto-trigger.** Onboarding now asks 2 explicit questions (instance NAME like „Online Strateg" + topic). The user's instance name is:
+  - Saved to `state.env` as `BUDDYPRO_INSTANCE_NAME` (separate from `BUDDYPRO_INSTANCE_TOPIC`)
+  - Persisted to `.instance-aliases` file (survives skill upgrades)
+  - Injected into local `SKILL.md` frontmatter `description` so Claude Code auto-trigger fires when user mentions the custom name (not just „BuddyPro")
+  - Wrapped in a per-instance slash command alias (e.g., `/online-strateg`)
+  - Re-applied after every `auto-update` via `INSTALL.md` post-install hook (custom description survives skill upgrades)
+
+- **Fresh-agent 30-second TL;DR.** New section at top of `SKILL.md` with 7 critical facts that prevent ~80% of mistakes a brand-new subagent makes (HTTP not Telegram, no history in messages, `user` field semantics, Step 0 auto-update, state.env onboarding, anti-clarification directive, MASTER PATTERN default).
+
+- **`/buddypro-api-update` slash command.** Explicit force-update path for users who know there's a new release and want it now (bypasses 4h cache TTL). Honors `.pinned_version` if set.
+
+- **Auto-promotion path** (existing-key discovery from v0.9.1) now also captures instance NAME via probe + name-extraction heuristic (regex on bot's self-introduction), or asks the user once if extraction fails.
+
+- **All scenarios in `deep-research-scenarios.md`** now explicitly assume anti-clarification directive on every call + MASTER PATTERN as base structural shape (called out at top of file).
+
 ## v0.9.3 — 2026-05-08
 
 **MASTER PATTERN promoted as default + anti-clarification propagated + standalone changelog.**

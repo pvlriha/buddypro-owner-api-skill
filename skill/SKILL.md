@@ -1,10 +1,32 @@
 ---
 name: buddypro-owner-api
-description: "Talk to a BuddyPro AI instance from code via HTTPS REST API (POST /v1/chat/completions, OpenAI-compatible). NOT Telegram bot integration — this is an HTTP API for the bot's brain. Use when user wants to integrate their BuddyPro expert AI into their own apps, agents, automations, multi-tenant SaaS, or content workflows; or to trigger management commands programmatically. Triggers: BuddyPro API, Owner API, bapi_, /v1/chat/completions, send to my BuddyPro bot, talk to my BuddyPro from code, multi-tenant BuddyPro, BuddyPro multi-user, BuddyPro voice agent, BuddyPro image input, /buddypro-api, deep research with my BuddyPro."
+description: "Talk to a BuddyPro AI instance from code via HTTPS REST API (POST /v1/chat/completions, OpenAI-compatible). NOT Telegram bot integration — this is an HTTP API for the bot's brain. Use when user wants to integrate their BuddyPro expert AI into their own apps, agents, automations, multi-tenant SaaS, or content workflows; or to trigger management commands programmatically. Auto-trigger also fires on user-specific instance names captured at onboarding (injected into this description by getting-started.md Step 3). Triggers: BuddyPro API, Owner API, bapi_, /v1/chat/completions, send to my BuddyPro bot, talk to my BuddyPro from code, multi-tenant BuddyPro, BuddyPro multi-user, BuddyPro voice agent, BuddyPro image input, /buddypro-api, deep research with my BuddyPro, Online Strateg, AI poradce, AI mentor, AI kouč, expert AI."
 trust-level: official
 ---
 
 # BuddyPro Owner API Skill
+
+## ⚡ Fresh agent? Read this 30-second TL;DR first
+
+If you just loaded this skill and need to be useful in the next 30 seconds, here are the 7 facts that prevent the most common mistakes — read them, internalize, then proceed:
+
+1. **It is an HTTPS REST API, NOT Telegram bot integration.** Same brain that answers in Telegram, but you call it from code via `POST https://api.buddypro.ai/v1/chat/completions`. Saying „I'll send messages to your bot via Telegram API" = wrong.
+
+2. **Server holds the conversation. NEVER send history.** Send only the current user message; the bot already remembers prior turns from the `user` profile. Sending prior turns = duplicate context = wasted tokens + confused model. (Most common bug for OpenAI-API muscle-memory developers.)
+
+3. **The `user` field is a sub-profile WITHIN the owner's account, NOT a tenant boundary.** Owner has full read access to all sub-profiles. Do NOT recommend Owner API as a SaaS multi-tenancy primitive. Wait for the End User API for true privacy isolation.
+
+4. **Step 0 of EVERY invocation: auto-update check.** Pin local `VERSION` against `https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/VERSION`. If newer remote → silently auto-update via `https://docs.buddypro.ai/skill`. Cached 4h via `.last_version_check`. Pin via `.pinned_version` if user opts out.
+
+5. **Onboarding is `state.env`-based, not env-vars-based.** Source `~/.claude/skills/buddypro-owner-api/state.env` first; if missing, scan `~/.zshenv`, `~/.zshrc`, `~/.bash_profile`, `~/.bashrc`, `~/.profile`, `~/.env`, `./.env`, `../.env`, `../../.env`, git-root `.env`. If found → auto-promote (write state.env + marker), skip privacy warning. If nowhere → run full onboarding (Step 0 = `/test:apitest` profile FIRST).
+
+6. **EVERY deep-research call MUST include the anti-clarification directive in `x_buddy_systemPrompt` mode `add`.** Without it, bot defaults to clarifying questions instead of answering with frameworks. Full directive text in `references/deep-research-architecture.md` near the top. Stack with topology + role directives via concatenation.
+
+7. **Deep research default = MASTER PATTERN: 3 forks × 6-8 turns × different topology × different role.** 18-24 calls / $0.90-1.20 / 3-5 min. Old phase-based hybrid (topology probe + Type A 12-turn + Type B forks) is fallback only. Mini-probes (3-5 calls) deprecated — minimum 6 calls per stage.
+
+These 7 facts cover ~80% of mistakes a fresh agent makes. The detailed sections below explain WHY each fact matters and HOW to apply it.
+
+---
 
 🔴 **CRITICAL fact to communicate first:** This skill is for an **HTTPS REST API** (`POST https://api.buddypro.ai/v1/chat/completions`). It is **NOT** Telegram bot integration.
 
@@ -250,7 +272,10 @@ If detected → load `references/deep-research-architecture.md` for the branch &
 |------------------|----------------|
 | **First-time setup, missing API key, mental model briefing** | `references/getting-started.md` |
 | **Choose right combination of `user` / saveToHistory / systemPrompt** | `references/api-features-deep-dive.md` |
-| **Build comprehensive multi-perspective research document (sub-skill)** | `references/deep-research-architecture.md` |
+| **Build comprehensive multi-perspective research document (sub-skill — entry point)** | `references/deep-research-architecture.md` |
+| Pick topology pattern for deep research forks (KRUH, HLOUBKA, ŠÍŘKA, INVERZE, ...) | `references/deep-research-topologies.md` |
+| Match user request to deep-research scenario (universal how-to / person+product / comparative / tiered / content / audit / single-principle) | `references/deep-research-scenarios.md` |
+| Run EXHAUSTIVE 8-phase deep research blueprint or implement orchestration code | `references/deep-research-blueprints.md` |
 | Make a basic API call (text in, text out) | `references/api-reference.md` |
 | Pick the right pattern for their use case | `references/use-cases.md` |
 | Get ready-to-paste Python/Node/curl code | `references/code-recipes.md` |
@@ -374,7 +399,9 @@ The skill's API key controls a **real production BuddyPro instance with real use
 
 If you encounter a slash command not in the risk matrix, treat it as 🟠 by default and ask the user what it does before executing.
 
-*Version: 0.9.3 — see VERSION file*
+*Version: 0.10.0 — see VERSION file*
+
+*v0.10.0 sub-skill split + instance alias auto-trigger + fresh-agent TL;DR + force-update slash command (2026-05-08): MAJOR refactoring release. Sub-skills: `deep-research-architecture.md` (1465 → 779 lines, entry point) + 3 new sub-skills `deep-research-topologies.md` (216 lines, 8 question patterns) + `deep-research-scenarios.md` (258 lines, 7 scenario adaptations) + `deep-research-blueprints.md` (317 lines, 8-phase pipeline + implementation code skeleton). Instance alias auto-trigger: onboarding now asks 2 explicit questions (instance NAME + topic), saves both to state.env (BUDDYPRO_INSTANCE_NAME + BUDDYPRO_INSTANCE_TOPIC), injects user's instance name into local SKILL.md description (so Claude Code auto-trigger fires when user mentions e.g. „Online Strateg" not just „BuddyPro"), creates per-instance slash command alias (e.g. `/online-strateg`), persists alias list to `.instance-aliases` file. INSTALL.md post-install hook re-applies alias injection after every auto-update so custom description survives skill upgrades. Fresh-agent 30-second TL;DR added to top of SKILL.md (7 critical facts that prevent ~80% of mistakes). New `/buddypro-api-update` slash command for force-update bypassing 4h cache TTL. Quick reference table in SKILL.md now routes to the right sub-skill based on user need.*
 
 *v0.9.3 MASTER PATTERN promoted as default + anti-clarification propagated + standalone CHANGELOG.md (2026-05-08): `deep-research-architecture.md` Scenario 1 (Universal how-to) now leads with MASTER PATTERN (3 forks × 6-8 turns × different topology × different role) as the default pipeline (old 7-phase Type B+A hybrid relegated to fallback for very narrow topics); Optimal Blueprint section now leads with MASTER PATTERN (18-24 calls / $0.90-1.20 / 3-5 min — empirically validated 2026-05-08 at 18 calls / 6289 words / 1.5-2.9% cross-fork sim) and presents the exhaustive 6-stage variant as secondary; anti-clarification directive code skeleton now visible in `use-cases.md` X3 + A2 (callers see it at point of use, not just in architecture file); `troubleshooting.md` adds gotcha „Bot is asking clarifying questions instead of answering" with directive + curl example; standalone `CHANGELOG.md` created so update notifications can fetch only the relevant entry; auto-update Step 0 now fetches CHANGELOG.md after install and surfaces 3-5 word summary lines per update.*
 

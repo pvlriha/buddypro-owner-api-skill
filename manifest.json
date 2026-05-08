@@ -1,6 +1,6 @@
 {
   "name": "buddypro-owner-api",
-  "version": "0.9.3",
+  "version": "0.10.0",
   "description": "Claude Code skill for integrating with BuddyPro Owner API",
   "author": "pvlriha",
   "license": "MIT",
@@ -12,6 +12,9 @@
     "skill/references/api-reference.md": "$HOME/.claude/skills/buddypro-owner-api/references/api-reference.md",
     "skill/references/api-features-deep-dive.md": "$HOME/.claude/skills/buddypro-owner-api/references/api-features-deep-dive.md",
     "skill/references/deep-research-architecture.md": "$HOME/.claude/skills/buddypro-owner-api/references/deep-research-architecture.md",
+    "skill/references/deep-research-topologies.md": "$HOME/.claude/skills/buddypro-owner-api/references/deep-research-topologies.md",
+    "skill/references/deep-research-scenarios.md": "$HOME/.claude/skills/buddypro-owner-api/references/deep-research-scenarios.md",
+    "skill/references/deep-research-blueprints.md": "$HOME/.claude/skills/buddypro-owner-api/references/deep-research-blueprints.md",
     "skill/references/use-cases.md": "$HOME/.claude/skills/buddypro-owner-api/references/use-cases.md",
     "skill/references/code-recipes.md": "$HOME/.claude/skills/buddypro-owner-api/references/code-recipes.md",
     "skill/references/multi-tenancy.md": "$HOME/.claude/skills/buddypro-owner-api/references/multi-tenancy.md",
@@ -19,10 +22,12 @@
     "skill/references/instance-management.md": "$HOME/.claude/skills/buddypro-owner-api/references/instance-management.md",
     "skill/references/troubleshooting.md": "$HOME/.claude/skills/buddypro-owner-api/references/troubleshooting.md",
     "skill/references/docs-references.md": "$HOME/.claude/skills/buddypro-owner-api/references/docs-references.md",
-    "command/buddypro-api.md": "$HOME/.claude/commands/buddypro-api.md"
+    "command/buddypro-api.md": "$HOME/.claude/commands/buddypro-api.md",
+    "command/buddypro-api-update.md": "$HOME/.claude/commands/buddypro-api-update.md"
   },
   "dependencies": {
-    "curl": "any version (default on macOS, Linux, Windows 10+)"
+    "curl": "any version (default on macOS, Linux, Windows 10+)",
+    "python3": "any version (default on macOS, Linux; for SKILL.md description injection in onboarding/install hooks)"
   },
   "install_url": "https://docs.buddypro.ai/skill",
   "repo": "https://github.com/pvlriha/buddypro-owner-api-skill"

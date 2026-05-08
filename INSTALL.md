@@ -28,6 +28,9 @@ files=(
   "skill/references/api-reference.md:skill/references/api-reference.md"
   "skill/references/api-features-deep-dive.md:skill/references/api-features-deep-dive.md"
   "skill/references/deep-research-architecture.md:skill/references/deep-research-architecture.md"
+  "skill/references/deep-research-topologies.md:skill/references/deep-research-topologies.md"
+  "skill/references/deep-research-scenarios.md:skill/references/deep-research-scenarios.md"
+  "skill/references/deep-research-blueprints.md:skill/references/deep-research-blueprints.md"
   "skill/references/use-cases.md:skill/references/use-cases.md"
   "skill/references/code-recipes.md:skill/references/code-recipes.md"
   "skill/references/multi-tenancy.md:skill/references/multi-tenancy.md"
@@ -36,6 +39,7 @@ files=(
   "skill/references/troubleshooting.md:skill/references/troubleshooting.md"
   "skill/references/docs-references.md:skill/references/docs-references.md"
   "command/buddypro-api.md:command/buddypro-api.md"
+  "command/buddypro-api-update.md:command/buddypro-api-update.md"
 )
 
 for entry in "${files[@]}"; do
@@ -55,6 +59,7 @@ cp "$TMP/CHANGELOG.md" "$DEST_SKILL/CHANGELOG.md"
 cp "$TMP/skill/SKILL.md" "$DEST_SKILL/SKILL.md"
 cp "$TMP/skill/references/"*.md "$DEST_SKILL/references/"
 cp "$TMP/command/buddypro-api.md" "$DEST_CMD/buddypro-api.md"
+cp "$TMP/command/buddypro-api-update.md" "$DEST_CMD/buddypro-api-update.md"
 
 # Sanity check — detect placeholder/stub references (under 500 bytes)
 STUB_COUNT=$(find "$DEST_SKILL/references" -name "*.md" -size -500c 2>/dev/null | wc -l | tr -d ' ')
@@ -63,6 +68,35 @@ INSTALLED_VERSION=$(cat "$DEST_SKILL/VERSION")
 # Onboarding state preservation check — these files survive update if they existed before
 [ -f "$DEST_SKILL/state.env" ] && echo "ONBOARDING_STATE_PRESERVED=yes" || echo "ONBOARDING_STATE_PRESERVED=no_prior_state"
 [ -f "$DEST_SKILL/.onboarded" ] && echo "ONBOARDING_MARKER_PRESERVED=yes" || echo "ONBOARDING_MARKER_PRESERVED=no_prior_marker"
+
+# Post-install hook — re-inject instance name into SKILL.md description
+# (every update overwrites SKILL.md, so we need to re-apply the user's instance alias)
+if [ -f "$DEST_SKILL/.instance-aliases" ]; then
+    INSTANCE_ALIASES=$(cat "$DEST_SKILL/.instance-aliases" 2>/dev/null)
+    if [ -n "$INSTANCE_ALIASES" ]; then
+        python3 - <<PY
+import re
+skill_md = "$DEST_SKILL/SKILL.md"
+aliases = """$INSTANCE_ALIASES""".strip().split('\n')
+try:
+    with open(skill_md, encoding='utf-8') as f:
+        content = f.read()
+    m = re.search(r'^description:\s*"([^"]+)"', content, re.MULTILINE)
+    if m:
+        old = m.group(1)
+        names_to_add = [a for a in aliases if a and a not in old]
+        if names_to_add:
+            joined = ", ".join(names_to_add)
+            new = old.rstrip(' .') + f", {joined} (user's instance names)."
+            content = content.replace(f'description: "{old}"', f'description: "{new}"', 1)
+            with open(skill_md, 'w', encoding='utf-8') as f:
+                f.write(content)
+            print(f"INSTANCE_ALIASES_REAPPLIED={joined}")
+except Exception as e:
+    print(f"INSTANCE_ALIAS_REAPPLY_FAILED={e}")
+PY
+    fi
+fi
 
 echo "INSTALLED_VERSION=$INSTALLED_VERSION"
 echo "STUB_REFERENCE_FILES=$STUB_COUNT"
