@@ -363,27 +363,61 @@ If the agent has `mcp__gdrive__*` tools, `mcp__google-drive__*`, or similar — 
 
 ### Finding the BuddyPro folder
 
-The agent knows:
-1. **The instance topic** (`$BUDDYPRO_INSTANCE_TOPIC` env var or asked from owner)
-2. **The standard BuddyPro folder structure** (see "Drive folder structure" earlier in this file)
+🔴 **DO NOT ask the bot via the API for its Drive folder name.** The bot has **NO visibility into its own Drive folder**: it doesn't know the folder name, doesn't know what files are in it, doesn't know the structure. It only sees pre-indexed RAG chunks. Asking it `„Jak se jmenuje tvoje složka v Google Drive?"` returns a hallucination or a refusal — the answer is never trustworthy. Locate the folder via Drive MCP / Drive search, NOT via the Owner API.
 
-To locate the folder:
+**Identification procedure (use signals in this priority order):**
+
+1. **Primary signal — folder is shared with the BuddyPro service email AND has the standard BuddyPro structure.** Every BuddyPro folder is shared with the BuddyPro ingestion service account (the email used to set up the instance — typically a `@buddypro-...iam.gserviceaccount.com` or similar service email). Inside, the folder contains: `SYSTEM PROMPT` doc, `URL SOURCES` doc, `SOURCES/` subfolder (often with `TEXTS/`, `MEDIA/`), and frequently a `ROLES/` subfolder. If both the share signal AND structure signal are present → almost certainly a BuddyPro folder.
+
+2. **Secondary signal — `SYSTEM PROMPT` content matches what you know about the user's instance.** Once you have one or more candidate folders, OPEN the `SYSTEM PROMPT` document of each. The opening lines reveal the bot's name, expert role, target audience, voice rules. Compare against `$BUDDYPRO_INSTANCE_TOPIC` (or what the user described). The match in SYSTEM PROMPT is the definitive signal.
+
+3. **If multiple BuddyPro-shaped folders exist (user has more than one instance) — read each SYSTEM PROMPT, then ask the user to disambiguate:** *„Found N BuddyPro-shaped folders. Which one belongs to the instance we're working with? It should be the one where SYSTEM PROMPT describes [topic / bot name from $BUDDYPRO_INSTANCE_TOPIC]."*
+
+4. **If still uncertain → ask the user directly:** *„What's your BuddyPro bot called? What does it specialize in? (I'll match that against the SYSTEM PROMPT documents I find.)"*
+
+**NEVER identify a folder by its display name alone** — folder names vary widely and are often generic (e.g., „BuddyPro", brand name, „AI", „Knowledge"). Display name is NOT a reliable signal; SYSTEM PROMPT content match + service-email-share is.
+
+**Code skeleton (adapt to your Drive MCP/API):**
 
 ```python
-# Pseudo — adapt to actual MCP/API
-folders = drive_search_folders(name_contains=instance_topic_keywords)
-
-# Filter for BuddyPro structure (must contain SOURCES/, ROLES/, SYSTEM PROMPT)
-for folder in folders:
+# Step 1 — find candidate folders by structure + share signal
+candidates = []
+for folder in drive_search_folders():
     children = drive_list(folder.id)
-    has_sources = any(c.name == "SOURCES" for c in children)
-    has_roles = any(c.name == "ROLES" for c in children)
-    has_system_prompt_doc = any("SYSTEM PROMPT" in c.name for c in children)
-    if has_sources and has_roles and has_system_prompt_doc:
-        return folder  # Found the BuddyPro instance folder
+    permissions = drive_get_permissions(folder.id)
+
+    has_system_prompt = any("SYSTEM PROMPT" in c.name for c in children)
+    has_url_sources = any("URL SOURCES" in c.name for c in children)
+    has_sources_dir = any(c.name == "SOURCES" and c.is_folder for c in children)
+
+    shared_with_buddypro_service = any(
+        "buddypro" in p.email_address.lower() and "iam.gserviceaccount.com" in p.email_address.lower()
+        for p in permissions
+    )
+
+    if has_system_prompt and (has_url_sources or has_sources_dir) and shared_with_buddypro_service:
+        candidates.append(folder)
+
+# Step 2 — disambiguate by SYSTEM PROMPT content match
+matched = []
+for folder in candidates:
+    sp_doc = find_doc(folder, name="SYSTEM PROMPT")
+    sp_content = drive_read_doc(sp_doc.id)
+    if topic_matches(sp_content, BUDDYPRO_INSTANCE_TOPIC):
+        matched.append(folder)
+
+# Step 3 — handle 0 / 1 / N
+if len(matched) == 0:
+    # Ask user: name the bot + describe what it does, retry match
+    pass
+elif len(matched) == 1:
+    return matched[0]
+else:
+    # Show user which N folders matched, ask which one
+    pass
 ```
 
-If owner doesn't know the folder name, ask: *„Můžu se podívat do tvého Google Drive a najít BuddyPro složku tvojí instance? Hledám složku s podsložkami SOURCES/ a ROLES/ a dokumentem SYSTEM PROMPT."*
+If owner doesn't know the folder name, ask: *„Můžu se podívat do tvého Google Drive a najít BuddyPro složku tvojí instance? Budu hledat složku, která je nasdílená se servisním BuddyPro emailem a obsahuje dokument SYSTEM PROMPT — pak ho přečtu a porovnám s tím, co o tvojí instanci víme."*
 
 ### Reading the system prompt (highest-value action)
 
@@ -464,4 +498,4 @@ For deeper guidance on:
 
 For a complete map of docs pages, see `references/docs-references.md`.
 
-*Last updated: 2026-05-07 (v0.2.0)*
+*Last updated: 2026-05-08 (v0.9.0 — added critical Drive folder identification gotcha: bot has NO visibility into its own Drive folder, so use service-email-share + SYSTEM PROMPT content match, NEVER ask the bot)*

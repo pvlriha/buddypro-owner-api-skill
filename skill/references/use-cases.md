@@ -4,15 +4,24 @@ When the user asks „what can I do with this?" — match their intent to one of
 
 The active assistant should **suggest patterns proactively** based on `$BUDDYPRO_INSTANCE_TOPIC`. A marketing coach instance has different natural fits than a fitness trainer.
 
+## 🔴 Read first: SaaS / external-customer warning
+
+Per official docs (`https://docs.buddypro.ai/owner-api/`), conversations through the API key are saved into the GENERATING Telegram profile's data. The `user` field creates sub-profiles WITHIN your account — **not** a privacy boundary between independent customers.
+
+**Therefore:**
+- Categories **A** (owner-direct) and **D** (internal team enablement, where „users" are colleagues you trust with each other's data) are unambiguously appropriate for the Owner API.
+- Categories **B** (end-user products / SaaS) and **C** (public community integrations with non-team members) are technically possible BUT have unresolved privacy issues — owner has full read access to all sub-profiles, no public delete API, no per-customer audit isolation. **A future End User API is planned to address this.** For genuine SaaS, recommend the user wait for that — or accept and disclose the data model in their ToS/privacy policy.
+- The active assistant should not lead with B or C patterns when the user is undecided. Lead with A and D, and only suggest B/C with the warning surfaced if the user explicitly asks for them.
+
 ## The 4 categories
 
-| Category | Examples | Common pattern |
+| Category | Examples | Owner-API fit |
 |----------|----------|----------------|
-| **A. Owner-direct automation** | Own scripts, daily reports, batch eval | API key alone, owner profile or stateless |
-| **B. End-user products** | SaaS apps, web chat, member portals | `user` field per end-customer with stable memory |
-| **C. Community integrations** | Telegram/WhatsApp/Facebook/Skool group bots | `user` per group member + context injection |
-| **D. Team enablement** | Slack, MS Teams, internal tools | Team Slack bot, expert-brain backend for agents |
-| **Cross-cutting** | Content generation, marketing automation | Mix of A+C+D depending on workflow |
+| **A. Owner-direct automation** | Own scripts, daily reports, batch eval, deep research | ✅ Designed for this |
+| **B. End-user products** | SaaS apps, web chat, member portals | ⚠️ Privacy issues — wait for End User API for production SaaS |
+| **C. Community integrations** | Telegram/WhatsApp/Facebook/Skool group bots | ⚠️ Same privacy issue if community members aren't already trusted contacts |
+| **D. Team enablement** | Slack, MS Teams, internal tools, agent backends | ✅ Good fit (your team trusts each other with shared knowledge backend) |
+| **Cross-cutting** | Content generation, marketing automation | ✅ Mostly owner-direct workflows |
 
 ## Category A — Owner-Direct Automation
 
@@ -82,7 +91,9 @@ done
 
 ## Category B — End-User Products
 
-The owner builds a product where end-customers interact with the bot. Each customer has their own memory.
+🔴 **Read the SaaS warning at the top of this file before designing any pattern in this category.** All sub-profiles created via the owner's `bapi_` key are still owner-owned data — there's no privacy boundary between paying customers. Use these patterns only if: (a) customers are explicitly informed and ToS reflects it, OR (b) you're prototyping/internally testing and not running it as a paid SaaS yet, OR (c) the use case isn't truly customer-facing (e.g., internal stakeholder portal). For production SaaS with paying customers expecting data privacy, wait for the End User API.
+
+The owner builds a product where end-customers interact with the bot. Each customer has their own sub-profile (NOT private from owner — see warning).
 
 ### B1 — Multi-tenant SaaS chat
 
@@ -325,7 +336,9 @@ def progress_sales_conversation(contact_id, last_msg_from_contact):
 
 ## Category C — Community Integrations
 
-Bot embedded in group communication platforms. Each group member is a separate user. Group context (recent posts, ongoing thread) gets injected per call.
+⚠️ **Same privacy caveat as Category B if community members aren't already trusted contacts.** Their conversations end up as sub-profiles under the owner's account — owner has full read access. For closed groups (your team, your existing paying members who already trust you with their data) this is fine; for public groups with strangers, surface the SaaS warning at the top of this file before building.
+
+Bot embedded in group communication platforms. Each group member is a separate sub-profile. Group context (recent posts, ongoing thread) gets injected per call.
 
 ### C1 — Telegram group bot
 
@@ -814,15 +827,16 @@ def deep_research(topic: str, output_format: str = "markdown report") -> str:
 ```
 Who is the user of the bot?
 │
-├─ The owner themselves (scripts, automation, content creation)
+├─ The owner themselves (scripts, automation, content creation) — ✅ recommended
 │   └─ Category A
 │       ├─ Single one-off question? → A1
 │       ├─ Bulk testing / eval? → A2
 │       ├─ Daily monitoring? → A3
 │       └─ Knowledge audit? → A4
 │
-├─ End-customers of a product (each gets own memory)
-│   └─ Category B
+├─ End-customers of a paid product — ⚠️ surface SaaS warning first
+│   └─ Category B (acceptable for prototype / internal testing / disclosed-ToS;
+│      for production SaaS wait for End User API)
 │       ├─ Multi-tenant chat? → B1
 │       ├─ Web visitor? → B2
 │       ├─ Paid member? → B3
@@ -832,18 +846,18 @@ Who is the user of the bot?
 │       ├─ Tier-based personas? → B7
 │       └─ DM communication / sales (Instagram, FB, LinkedIn, X)? → B8
 │
-├─ Members of a community/group (Telegram, WhatsApp, FB, Skool, Discord)
+├─ Members of a community/group — ⚠️ surface warning if non-trusted strangers
 │   └─ Category C
 │       ├─ Pick platform (C1-C5)
 │       └─ Always inject context (Method 1, 2, or 3)
 │
-├─ Owner's TEAM (Slack, Teams, internal tools)
+├─ Owner's TEAM (Slack, Teams, internal tools) — ✅ recommended
 │   └─ Category D
 │       ├─ Slack/Teams bot? → D1/D2
 │       ├─ Embedded in workspace? → D3
 │       └─ Backend for autonomous agent? → D4
 │
-└─ Cross-cutting — content/research/automation
+└─ Cross-cutting — content/research/automation — ✅ recommended (owner workflow)
     ├─ Single-shot content generation? → X1
     ├─ One-call deep query (5-min answer)? → X2
     └─ Comprehensive research → polished document? → X3 (multi-step deep research)
@@ -861,19 +875,19 @@ The real power: combine. Examples:
 
 ## Tailoring suggestions to instance topic
 
-When `$BUDDYPRO_INSTANCE_TOPIC` is known, the active assistant prioritizes patterns:
+When `$BUDDYPRO_INSTANCE_TOPIC` is known, the active assistant prioritizes patterns. **Lead with ✅ patterns**; only mention ⚠️ patterns if user explicitly asks for external-customer-facing setups (and surface the SaaS warning first).
 
-| Instance topic example | Most-likely patterns |
-|------------------------|----------------------|
-| Marketing coach for entrepreneurs | A4, B1, B7, B8 (DM sales), C-platforms, D1, X1, X2 |
-| Personal fitness trainer | B1, B5 (voice during workout), B8 (Instagram DM coaching), C1 (community group), B6 (form check images) |
-| Sales advisor B2B | A1, B1, B8 (LinkedIn DMs!), D1, D4 (agent backend for CRM), X1 (proposal drafts) |
-| Mindfulness teacher | B5 (audio meditations), B3 (member sessions), B8 (DM check-ins), C2 (WhatsApp coaching group) |
-| Writing coach | B7 (tier feedback), B8 (DM critique requests), D3 (in workspace), X1 (content drafts) |
-| Community founder (Skool, Discord, Telegram) | C-platforms PRIMARY, B8 (DMs from members), D1 (mod team), B3 (member portal) |
-| Internal team trainer / corporate L&D | D1, D2, D3, D4 — all team patterns |
-| Solo content creator / influencer | B8 PRIMARY (Instagram/X DMs), X1 (content drafts), A4 (audience research) |
+| Instance topic example | ✅ Recommended (lead with these) | ⚠️ Mention only if explicitly asked |
+|------------------------|--------------------------------|---------------------------------------|
+| Marketing coach for entrepreneurs | A4 (KB audit), X1 (content drafts), X2 (single-shot deep query), X3 (deep research), D1 (Slack for own team) | B1, B7, B8, C-platforms |
+| Personal fitness trainer | A1, A2 (workout-plan eval), X1 (content), X3 (research) | B1, B5, B6, C1 |
+| Sales advisor B2B | A1, X1 (proposal drafts), X3 (deep research), D4 (CRM agent backend) | B1, B8 (LinkedIn DMs) |
+| Mindfulness teacher | A4 (KB audit), X1, X3 | B3, B5, B8, C2 |
+| Writing coach | A1, A2 (eval drafts), X1 (content), X3 (research), D3 (in workspace) | B7, B8 |
+| Community founder | A4, X1, D1 (mod team) | C-platforms, B3, B8 |
+| Internal team trainer / corporate L&D | D1, D2, D3, D4 — all team patterns ✅ | (none — this topic IS the right fit) |
+| Solo content creator / influencer | X1 (content drafts) ✅, A4 (audience research), X3 (deep research) | B8 (DMs) |
 
-The skill should suggest the **2–3 patterns most relevant to the topic**, not all 15.
+The skill should suggest the **2–3 ✅ patterns most relevant to the topic**, not all of them. Surface ⚠️ patterns only on explicit request, with the privacy warning attached.
 
-*Last updated: 2026-05-07 (v0.5.0 — expanded to 4 categories + context injection patterns + 8 new patterns)*
+*Last updated: 2026-05-08 (v0.9.0 — added SaaS / privacy warning at top; reframed Categories B and C with ⚠️ markers; updated tailoring table to lead with ✅ owner-direct patterns and only mention ⚠️ external-customer patterns on explicit request)*

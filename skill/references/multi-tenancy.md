@@ -1,23 +1,36 @@
 # Multi-Tenancy — `user` Field Deep Dive
 
-When the BuddyPro instance serves multiple end-customers (each with their own memory, history, and context), the `user` field is the single most important parameter to understand. This file covers when to use it, how to design IDs, isolation guarantees, privacy implications, and SaaS embedding patterns.
+> 🔴 **Read this first — the `user` field is NOT a SaaS multi-tenancy primitive.**
+>
+> Per official Owner API docs (`https://docs.buddypro.ai/owner-api/`): *„When you generate an API key, it is tied to the user that generated it, and the conversation happening with that API key is actually being saved into message history (even though you don't see that conversation in Telegram) and contributes to the user profile and memory."*
+>
+> **What this means concretely:** When you pass `"user": "customer-acme-42"`, you do NOT create an isolated tenant with privacy from you. You create a **sub-profile inside YOUR account**. The owner of the API key (= the Telegram profile that ran `/generateApiKey`) has **full read access to ALL sub-profiles** created via that key. There is currently no public API to delete a sub-profile.
+>
+> **Therefore:**
+> - ✅ The `user` field IS appropriate for: separating contexts in the OWNER's own work (research-1 vs research-2, sales-Q1 vs coaching-Q1, agent-task-N), isolating internal team members (each colleague has separate memory in your shared brain), distinguishing batch eval runs.
+> - ⚠️ The `user` field is NOT a substitute for end-customer privacy. Production SaaS where customers expect their conversations to be private from the owner should wait for the upcoming **End User API** (each customer generates their OWN `bapi_` key — true privacy boundary).
+> - ⚠️ If you must run an external-customer product on Owner API today (prototype, MVP, friends-and-family beta): disclose the data-ownership model in your ToS/privacy policy, generate the key on a `/test` profile (not your real one), and treat all customer conversations as visible-to-you logs.
+
+The remainder of this file documents how the `user` field works mechanically — when to use it, how to design IDs, isolation guarantees, and patterns. **All patterns assume you've read and understood the warning above.**
+
+When the BuddyPro instance serves multiple sub-profiles (each with their own memory, history, and context), the `user` field is the single most important parameter to understand.
 
 ## The core mechanic
 
 Every API call optionally accepts a `user` field:
 
 ```json
-{ "user": "customer-acme-42", "messages": [{"role": "user", "content": "..."}] }
+{ "user": "research-launch-q2", "messages": [{"role": "user", "content": "..."}] }
 ```
 
 | Request | Where the conversation goes |
 |---------|------------------------------|
-| **No `user` field** | Owner's main profile (= the Telegram account that generated the API key) |
-| `"user": "abc"` (first time) | New isolated profile created, named `abc` |
-| `"user": "abc"` (later) | Same profile `abc` — full memory continuity |
-| `"user": "xyz"` | Separate profile from `abc` — totally independent |
+| **No `user` field** | Generating Telegram profile (should be your `/test` profile, not your real account) |
+| `"user": "abc"` (first time) | New sub-profile `abc` created INSIDE your account |
+| `"user": "abc"` (later) | Same sub-profile `abc` — full memory continuity |
+| `"user": "xyz"` | Separate sub-profile from `abc` — independent memory, but still your data |
 
-That's it. No registration, no setup, no quotas — profiles are created on first use of a new `user` value.
+That's it. No registration, no setup, no quotas — sub-profiles are created on first use of a new `user` value. **All sub-profiles remain visible to the owner** of the API key.
 
 ## ID format requirements
 
@@ -280,4 +293,4 @@ When this ships, multi-tenant architectures should consider migrating from owner
 - 30/min rate limit is per key — scale via multiple keys or async queues
 - Future End User API will solve the privacy-from-owner gap
 
-*Last updated: 2026-05-07 (v0.2.x)*
+*Last updated: 2026-05-08 (v0.9.0 — added prominent SaaS / privacy warning at top; reframed `user` field as sub-profile within owner's account, not tenant boundary; clarified End User API is the path for true SaaS multi-tenancy)*
