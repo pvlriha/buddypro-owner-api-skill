@@ -343,4 +343,4 @@ curl -s -X POST https://api.buddypro.ai/v1/chat/completions \
 
 If all three pass, the integration is healthy.
 
-*Last updated: 2026-05-07 (v0.2.x)*
+*Last updated: 2026-05-07 v1.0.0)*

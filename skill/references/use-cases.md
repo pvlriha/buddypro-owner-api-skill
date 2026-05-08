@@ -919,4 +919,4 @@ When `$BUDDYPRO_INSTANCE_TOPIC` is known, the active assistant prioritizes patte
 
 The skill should suggest the **2–3 ✅ patterns most relevant to the topic**, not all of them. Surface ⚠️ patterns only on explicit request, with the privacy warning attached.
 
-*Last updated: 2026-05-08 (v0.9.0 — added SaaS / privacy warning at top; reframed Categories B and C with ⚠️ markers; updated tailoring table to lead with ✅ owner-direct patterns and only mention ⚠️ external-customer patterns on explicit request)*
+*Last updated: 2026-05-08 v1.0.0)*

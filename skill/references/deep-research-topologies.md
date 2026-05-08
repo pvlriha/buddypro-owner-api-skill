@@ -213,4 +213,4 @@ Turns 19-20: Meta (consolidate, find essence)
 > - Scenario-by-scenario topology assignments: [`deep-research-scenarios.md`](./deep-research-scenarios.md)
 > - Default blueprint (MASTER PATTERN) topology fork assignments: [`deep-research-blueprints.md`](./deep-research-blueprints.md)
 
-*Last updated: 2026-05-08 (v0.11.0 — multi-instance support release from monolithic deep-research-architecture.md)*
+*Last updated: 2026-05-08 v1.0.0)*

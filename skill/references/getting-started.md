@@ -354,4 +354,4 @@ After reset, re-run full onboarding from privacy warning.
 - ❌ **Don't use bash `read -p`** — no interactive stdin in Claude Code. Agent asks user, user replies normally.
 - ❌ **Don't use bash heredoc with un-escaped user content.** Use Python (env-var passing) for any heredoc that contains user input.
 
-*Last updated: 2026-05-08 (v0.11.1 — drasticky zjednodušeno: smazány slash commands `/buddypro-add-instance` + `/buddypro-list-instances`, smazány per-instance `/[slug]` slash commands. Multi-instance management = pure konverzační.)*
+*Last updated: 2026-05-08 v1.0.0)*

@@ -293,4 +293,4 @@ When this ships, multi-tenant architectures should consider migrating from owner
 - 30/min rate limit is per key — scale via multiple keys or async queues
 - Future End User API will solve the privacy-from-owner gap
 
-*Last updated: 2026-05-08 (v0.9.0 — added prominent SaaS / privacy warning at top; reframed `user` field as sub-profile within owner's account, not tenant boundary; clarified End User API is the path for true SaaS multi-tenancy)*
+*Last updated: 2026-05-08 v1.0.0)*

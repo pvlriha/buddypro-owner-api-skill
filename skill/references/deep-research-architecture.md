@@ -776,4 +776,4 @@ Load that file when:
 
 For 95% of deep-research jobs, **the MASTER PATTERN documented in `Optimal blueprint` section above is the right tool — you do NOT need to load `deep-research-blueprints.md`.**
 
-*Last updated: 2026-05-08 (v0.11.0 — multi-instance + sub-skill split: `deep-research-topologies.md`, `deep-research-scenarios.md`, `deep-research-blueprints.md`. This file is the entry point.)*
+*Last updated: 2026-05-08 v1.0.0)*

@@ -498,4 +498,4 @@ For deeper guidance on:
 
 For a complete map of docs pages, see `references/docs-references.md`.
 
-*Last updated: 2026-05-08 (v0.9.0 — added critical Drive folder identification gotcha: bot has NO visibility into its own Drive folder, so use service-email-share + SYSTEM PROMPT content match, NEVER ask the bot)*
+*Last updated: 2026-05-08 v1.0.0)*

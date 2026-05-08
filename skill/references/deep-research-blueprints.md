@@ -305,7 +305,7 @@ Memory note: each Type A/C branch creates a `user` profile. Profiles persist (no
 - **Inspiration:** `claude-buddy-connection/conversation_orchestrator/` — multi-party Telegram orchestrator (uses Telethon, not Owner API). This file adapts its concepts for Owner-API-only deployments with single-bot, multi-branch design.
 - **Related:** `use-cases.md` Pattern X3 (simpler version), `api-features-deep-dive.md` (foundation), `code-recipes.md` Pattern 8 (basic deep research code), Pattern 9 (advanced — see `code-recipes.md`).
 
-*Last updated: 2026-05-07 (v0.7.0)*
+*Last updated: 2026-05-07 v1.0.0)*
 
 ---
 
@@ -314,4 +314,4 @@ Memory note: each Type A/C branch creates a `user` profile. Profiles persist (no
 > - Topology library: [`deep-research-topologies.md`](./deep-research-topologies.md)
 > - Scenario adaptations: [`deep-research-scenarios.md`](./deep-research-scenarios.md)
 
-*Last updated: 2026-05-08 (v0.11.0 — multi-instance support release from monolithic deep-research-architecture.md)*
+*Last updated: 2026-05-08 v1.0.0)*
