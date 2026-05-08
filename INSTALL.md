@@ -45,6 +45,9 @@ for entry in "${files[@]}"; do
 done
 
 # Atomic move into final location (only reached if every curl above succeeded)
+# IMPORTANT: this overwrites the SKILL.md, references/*, command/* files and the VERSION
+# but does NOT touch state.env or .onboarded marker — they live in the same dir but
+# are never in the cp source. Onboarding state is preserved across re-installs/updates.
 mkdir -p "$DEST_SKILL/references" "$DEST_CMD"
 cp "$TMP/VERSION" "$DEST_SKILL/VERSION"
 cp "$TMP/skill/SKILL.md" "$DEST_SKILL/SKILL.md"
@@ -54,6 +57,10 @@ cp "$TMP/command/buddypro-api.md" "$DEST_CMD/buddypro-api.md"
 # Sanity check — detect placeholder/stub references (under 500 bytes)
 STUB_COUNT=$(find "$DEST_SKILL/references" -name "*.md" -size -500c 2>/dev/null | wc -l | tr -d ' ')
 INSTALLED_VERSION=$(cat "$DEST_SKILL/VERSION")
+
+# Onboarding state preservation check — these files survive update if they existed before
+[ -f "$DEST_SKILL/state.env" ] && echo "ONBOARDING_STATE_PRESERVED=yes" || echo "ONBOARDING_STATE_PRESERVED=no_prior_state"
+[ -f "$DEST_SKILL/.onboarded" ] && echo "ONBOARDING_MARKER_PRESERVED=yes" || echo "ONBOARDING_MARKER_PRESERVED=no_prior_marker"
 
 echo "INSTALLED_VERSION=$INSTALLED_VERSION"
 echo "STUB_REFERENCE_FILES=$STUB_COUNT"

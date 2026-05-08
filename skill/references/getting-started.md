@@ -99,14 +99,41 @@ Use the bot's own answer to infer `BUDDYPRO_INSTANCE_TOPIC`. Confirm with one qu
 
 > *„Your bot says: „[exact bot answer]". I'll remember that as: „**[short topic phrase you extract from it]**". Sound right? (yes / clarify)"*
 
-If user says yes — save:
+If user says yes — write **persistent state file** (this is what survives across Claude Code sessions, not just env vars in shell profiles):
+
 ```bash
-echo 'export BUDDYPRO_INSTANCE_TOPIC="<extracted topic>"' >> "$SAVE_TO"
-mkdir -p "$HOME/.claude/skills/buddypro-owner-api"
-touch "$HOME/.claude/skills/buddypro-owner-api/.onboarded"
+SKILL_DIR="$HOME/.claude/skills/buddypro-owner-api"
+STATE_FILE="$SKILL_DIR/state.env"
+
+mkdir -p "$SKILL_DIR"
+
+# Write state.env (single source of truth — survives every session)
+cat > "$STATE_FILE" <<EOF
+# BuddyPro Owner API — persistent state, written at onboarding
+# This file is auto-sourced by the skill every invocation.
+# Format: shell-style KEY=value (so 'source state.env' works).
+# Permissions: 0600 (owner-only read/write).
+BUDDYPRO_API_KEY="$BUDDYPRO_API_KEY"
+BUDDYPRO_INSTANCE_TOPIC="<extracted topic>"
+ONBOARDED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+SKILL_VERSION_AT_ONBOARDING="$(cat "$SKILL_DIR/VERSION" 2>/dev/null || echo unknown)"
+TEST_PROFILE_USED="apitest"
+PRIVACY_WARNING_ACKNOWLEDGED=1
+EOF
+chmod 600 "$STATE_FILE"
+
+# Create the ceremony-completed marker
+touch "$SKILL_DIR/.onboarded"
+
+# Optional bonus: also export into user's shell profile (so external scripts/cron see it)
+if [ "$SAVE_TO" = ".env" ]; then
+    echo "BUDDYPRO_INSTANCE_TOPIC=<extracted topic>" >> .env
+else
+    echo 'export BUDDYPRO_INSTANCE_TOPIC="<extracted topic>"' >> "$SAVE_TO"
+fi
 ```
 
-If user clarifies — save their version.
+If user clarifies — save their version (replace `<extracted topic>` accordingly).
 
 Then deliver this 4-line mental model briefing (translate to user's language):
 
@@ -156,16 +183,56 @@ When the user invokes `/buddypro-api` without specifics, **don't show a generic 
 
 ---
 
-## Re-running onboarding
+## Auto-promotion: existing key found, no marker
 
-If user says „reset onboarding", or env vars / markers are missing, restart from Step 0. No friction — just go through it again.
+The most common case after the very first install: the user already has `BUDDYPRO_API_KEY` in some `.env` or shell profile from previous work, but this Claude Code install is fresh (no `state.env` and no `.onboarded` marker yet). The skill's self-check (in SKILL.md) auto-discovers the key and outputs `DISCOVERED_EXISTING_SETUP_AT=<path>`.
+
+**Don't run full onboarding in this case.** Instead, the active assistant should briefly auto-promote:
 
 ```bash
-# Reset:
+# From the discovered key, quickly probe the bot to confirm topic
+TOPIC_PROBE=$(curl -s -X POST https://api.buddypro.ai/v1/chat/completions \
+  -H "Authorization: Bearer $BUDDYPRO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"x_buddy_saveToHistory": false, "messages": [{"role": "user", "content": "What is your specialty in one sentence?"}]}' \
+  | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('choices',[{}])[0].get('message',{}).get('content',''))" 2>/dev/null)
+
+# Extract topic phrase from response, write state.env + marker
+SKILL_DIR="$HOME/.claude/skills/buddypro-owner-api"
+mkdir -p "$SKILL_DIR"
+cat > "$SKILL_DIR/state.env" <<EOF
+BUDDYPRO_API_KEY="$BUDDYPRO_API_KEY"
+BUDDYPRO_INSTANCE_TOPIC="<extracted from TOPIC_PROBE>"
+ONBOARDED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+ONBOARDED_VIA="auto-promotion-from-existing-env"
+DISCOVERED_FROM="$DISCOVERED_AT"
+PRIVACY_WARNING_ACKNOWLEDGED=1
+EOF
+chmod 600 "$SKILL_DIR/state.env"
+touch "$SKILL_DIR/.onboarded"
+```
+
+Then tell the user (in their language):
+
+> *„Našel jsem tvůj existující BuddyPro klíč v `[path]`. Bot říká, že je to: „[1-sentence response]". Jedu rovnou na tvůj task — pokud bys chtěl ladění (změnit téma, jiný klíč), řekni `reset onboarding`."*
+
+**Skip the privacy warning in auto-promotion.** A user with a working `bapi_` key in their `.env` has clearly already been through onboarding before — re-showing the warning is annoying noise. Privacy expectations only need to be set once.
+
+If the auto-promotion probe returns 401 (key invalid) or 429 → fall back to standard onboarding (Step 1 — generate fresh key).
+
+## Re-running onboarding
+
+If user says „reset onboarding" / „zapomeň můj klíč" / „start over", or `state.env` / `.onboarded` markers are missing AND no fallback location has a key, restart from Step 0. No friction — just go through it again.
+
+```bash
+# Full reset:
+rm -f "$HOME/.claude/skills/buddypro-owner-api/state.env"
 rm -f "$HOME/.claude/skills/buddypro-owner-api/.onboarded"
 unset BUDDYPRO_API_KEY BUDDYPRO_INSTANCE_TOPIC
 # Then walk Steps 0-3 again
 ```
+
+Note: reset does NOT touch the user's `.env` or `~/.zshrc`. If they want to wipe those too, they have to do it explicitly — the skill won't delete user's existing config without asking.
 
 ## Anti-patterns to avoid
 

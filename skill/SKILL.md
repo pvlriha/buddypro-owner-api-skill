@@ -62,21 +62,91 @@ If the user explicitly asks for SaaS / external customer patterns, surface this 
 
 🔴 **Communicate in the user's language.** BuddyPro is global (Czech, English, Spanish, German, …). Detect the language from the user's most recent message and respond in that language. Keep technical identifiers (`bapi_`, `BUDDYPRO_API_KEY`, `BUDDYPRO_INSTANCE_TOPIC`, `/generateApiKey`, `/buddypro-api`) verbatim across all languages.
 
-Before doing anything substantive, check the user's onboarding state:
+🔴 **Before doing ANY onboarding question, run the auto-discovery scan.** The most common reason a user looks „un-onboarded" is that they DID onboard previously — but in a different shell context, so the env vars don't propagate to the current Claude Code session. The skill MUST find their existing key autonomously, not force them to repeat onboarding.
+
+**Run this scan as a single bash block:**
 
 ```bash
-# Are env vars set?
-[ -z "$BUDDYPRO_API_KEY" ] && echo "MISSING_API_KEY"
-[ -z "$BUDDYPRO_INSTANCE_TOPIC" ] && echo "MISSING_TOPIC"
-[ ! -f "$HOME/.claude/skills/buddypro-owner-api/.onboarded" ] && echo "MISSING_MENTAL_MODEL_BRIEFING"
+STATE_FILE="$HOME/.claude/skills/buddypro-owner-api/state.env"
+ONBOARDED_MARKER="$HOME/.claude/skills/buddypro-owner-api/.onboarded"
 
-# `curl` available?
+# 1) PRIMARY source — persistent state file written at last successful onboarding
+if [ -f "$STATE_FILE" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$STATE_FILE"
+    set +a
+    DISCOVERED_AT="state.env"
+fi
+
+# 2) FALLBACK — exhaustively scan BOTH global home-level files AND project-local
+#    .env files. Order: global first (cross-project persistence wins), then project,
+#    then git-root if we're in a repo. Stop at first match.
+if [ -z "${BUDDYPRO_API_KEY:-}" ]; then
+    candidates=(
+        # GLOBAL home-level shell config + dotenv (most reliable for cross-session reuse)
+        "$HOME/.zshenv"          # always sourced by zsh (best for env vars)
+        "$HOME/.zshrc"           # interactive zsh
+        "$HOME/.bash_profile"    # bash login shell
+        "$HOME/.bashrc"          # bash interactive
+        "$HOME/.profile"         # POSIX fallback
+        "$HOME/.env"             # generic dotenv at home
+        # PROJECT-LOCAL .env files (current dir + 2 levels up)
+        "./.env"
+        "../.env"
+        "../../.env"
+    )
+
+    # Also try git-repo root .env if we happen to be inside a git repo
+    if git_root=$(git rev-parse --show-toplevel 2>/dev/null); then
+        candidates+=("$git_root/.env")
+    fi
+
+    for candidate in "${candidates[@]}"; do
+        if [ -f "$candidate" ] && grep -qE "^[[:space:]]*(export[[:space:]]+)?BUDDYPRO_API_KEY=" "$candidate" 2>/dev/null; then
+            # Source only the BUDDYPRO_* lines (defense — other vars in user's .env are not our business)
+            eval "$(grep -E "^[[:space:]]*(export[[:space:]]+)?BUDDYPRO_(API_KEY|INSTANCE_TOPIC|INSTANCE_NAME)=" "$candidate" | sed 's/^[[:space:]]*export[[:space:]]\+//')"
+            export BUDDYPRO_API_KEY BUDDYPRO_INSTANCE_TOPIC 2>/dev/null
+            DISCOVERED_AT="$candidate"
+            break
+        fi
+    done
+fi
+
+# 3) Readiness assessment
+[ -z "${BUDDYPRO_API_KEY:-}" ] && echo "MISSING_API_KEY"
+[ -z "${BUDDYPRO_INSTANCE_TOPIC:-}" ] && echo "MISSING_TOPIC"
 command -v curl >/dev/null || echo "MISSING_CURL"
+
+# 4) If we DISCOVERED a key in a fallback location (not state.env), promote it
+if [ -n "${BUDDYPRO_API_KEY:-}" ] && [ "${DISCOVERED_AT:-}" != "state.env" ] && [ ! -f "$STATE_FILE" ]; then
+    echo "DISCOVERED_EXISTING_SETUP_AT=$DISCOVERED_AT"
+fi
+
+# 5) Marker check — onboarding ceremony was completed at some point?
+[ -f "$ONBOARDED_MARKER" ] && echo "MARKER_PRESENT" || echo "MARKER_MISSING"
 ```
 
-If anything is missing, **load `references/getting-started.md` first** and walk the user through the relevant onboarding stages before answering their actual question. Don't assume readiness.
+**Decision matrix based on output:**
 
-If everything is ready, proceed to active-assistant mode (described in `getting-started.md`).
+| Output combination | Interpretation | Action |
+|---|---|---|
+| All 3 vars present + `MARKER_PRESENT` | ✅ Fully onboarded, full ceremony done | **SKIP everything.** No privacy warning, no questions. Go to active-assistant mode and answer the user's task. |
+| All 3 vars present + `DISCOVERED_EXISTING_SETUP_AT=...` + `MARKER_MISSING` | ✅ User already has working setup elsewhere, this Claude Code install is fresh | **Auto-promote**: write `state.env`, create `.onboarded` marker, briefly tell user *„Found your existing BuddyPro setup at `[path]`. Topic: `[topic]`. Skipping onboarding."* Then go straight to their task. **Do NOT show privacy warning** — they already passed onboarding in a previous session. |
+| `MISSING_API_KEY` or `MISSING_TOPIC` + `MARKER_MISSING` | True first-time install on this machine | Load `references/getting-started.md` and run the FULL 4-step onboarding (Step 0 privacy warning → Step 1 key → Step 2 verify → Step 3 confirm + state.env write + marker). |
+| `MISSING_CURL` | Environment lacks curl | Tell user — install curl, then retry. |
+| User explicitly says „reset onboarding" / „forget my setup" / „start over" | Manual reset request | Run reset procedure (below), then re-run full onboarding. |
+
+🔴 **Critical UX rule — privacy warning is ONE-SHOT.** It's part of Step 0 of onboarding. After `state.env` is written, the warning has been seen and acknowledged. **Never re-surface it on subsequent invocations.** Repeating it on every session = annoying noise + makes the user think the skill thinks it knows nothing about them. The state file presence = warning was acknowledged at onboarding time.
+
+🔴 **State file is preserved across skill upgrades.** When you (or the user) re-install via INSTALL.md, the install procedure overwrites only the skill files (SKILL.md, references/, command). It does NOT touch `state.env` or `.onboarded`. So upgrading from v0.9.0 → v0.9.1 keeps the user onboarded.
+
+**Reset procedure** (when user explicitly says „reset onboarding" / „zapomeň můj klíč" / „start over"):
+```bash
+rm -f "$HOME/.claude/skills/buddypro-owner-api/state.env"
+rm -f "$HOME/.claude/skills/buddypro-owner-api/.onboarded"
+```
+Then re-run full onboarding from Step 0.
 
 ## 🔗 Google Drive integration check (high-value bonus)
 
@@ -254,6 +324,8 @@ If `UPDATE_AVAILABLE`, mention it once at the start of your response — **in th
 
 If user asks to update, fetch `https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/INSTALL.md` and re-run the install procedure. (Production note: once `docs.buddypro.ai/skill` redirect is set up, that becomes the user-facing canonical URL — but the install procedure stays the same; only this URL changes.)
 
-*Version: 0.9.0 — see VERSION file*
+*Version: 0.9.1 — see VERSION file*
+
+*v0.9.1 onboarding state persistence (2026-05-08): introduced `state.env` as the single source of truth (env vars don't survive between Claude Code sessions reliably); self-check now exhaustively scans BOTH global home-level files (`~/.zshenv`, `~/.zshrc`, `~/.bash_profile`, `~/.bashrc`, `~/.profile`, `~/.env`) AND project-local `.env` files (`./.env`, `../.env`, `../../.env`, plus git-root `.env` if in a repo); auto-promotion path — when key is found in any fallback location but `state.env` and `.onboarded` marker are missing, agent auto-creates both and skips full onboarding (privacy warning never re-shown); INSTALL.md note clarifies that re-installs preserve `state.env` + `.onboarded` (they're outside the cp source list); explicit reset procedure documented.*
 
 *v0.9.0 onboarding overhaul (2026-05-08): explicit HTTP-not-Telegram framing in description; mandatory `/test` profile switch as Step 0 of onboarding; prominent SaaS / privacy warning citing official docs; `user` field reframed as sub-profile within owner's account, NOT a tenant boundary; Drive folder identification gotcha (bot has no visibility into its own Drive — identify via service-email-share + SYSTEM PROMPT content match); value-first onboarding ending in 3 owner-direct demo prompts (no more SaaS demos by default); 4-line mental model briefing including latency (15-25s cold start, 3-8s warm), rate limit (30/min), cost (~$0.05/call); smart-default key storage (no A/B/C menu); auto-topic-detection from bot's first answer.*
