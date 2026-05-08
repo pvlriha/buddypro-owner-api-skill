@@ -4,18 +4,18 @@ Load the skill `buddypro-owner-api` from `~/.claude/skills/buddypro-owner-api/SK
 
 ## Always start with STEP 0 + STEP 1 from SKILL.md
 
-1. **STEP 0** — auto-update check (see SKILL.md). Bust cache if user says „force update".
+1. **STEP 0** — auto-update check (see SKILL.md). Bust cache if user says „force update" or invokes `/buddypro-api-update`.
 2. **STEP 1** — onboarding state + active-instance resolution (see SKILL.md):
    - If `instances.json` doesn't exist → run full 5-step onboarding via `references/getting-started.md`
    - If `instances.json` has 1 entry → use it as the active instance
    - If `instances.json` has 2+ entries → resolve which is active:
      - Did user mention a specific instance name? → use that one
      - Default to `instances.json["default_instance"]`
-     - Tell user briefly which instance is active (e.g., *„Used your default Online Strateg instance — switch with `/buddypro-list-instances` if needed."*)
+     - Tell user briefly which instance is active so they know
 
 After STEP 0 + STEP 1, route based on the user's request:
 
-- First-time onboarding, multi-instance management, mental model briefing → `references/getting-started.md`
+- First-time onboarding, multi-instance management (add/list/switch/remove — all conversational), mental model briefing → `references/getting-started.md`
 - Basic API call (text in/out, response parsing) → `references/api-reference.md`
 - Choosing the right pattern → `references/use-cases.md`
 - Ready-to-paste code (Python/Node/curl) → `references/code-recipes.md`
@@ -26,12 +26,12 @@ After STEP 0 + STEP 1, route based on the user's request:
 - Errors / rate limits / clarifying-question gotcha → `references/troubleshooting.md`
 - Official docs lookup → `references/docs-references.md`
 
-## Multi-instance management commands
+## The only slash commands
 
-- `/buddypro-add-instance` — add another BuddyPro instance to the user's setup
-- `/buddypro-list-instances` — list all configured instances + offer set-default / switch / remove
-- `/buddypro-api-update` — force update bypassing 4h cache
-- `/[slug]` (any) — invoke a specific instance directly (slugs are auto-generated from each instance name during onboarding)
+- `/buddypro-api` (this) — primary entry point
+- `/buddypro-api-update` — force update bypassing 4h cache TTL
+
+**No `/buddypro-add-instance`, no `/buddypro-list-instances`, no per-instance slash commands.** Multi-instance management is conversational — user says *„přidej další instanci"*, *„seznam mých instancí"*, *„přepni na [name]"*, *„odeber [name]"* in plain language and the skill recognizes intent + runs the matching flow.
 
 ## 🔴 Pre-execution protocol — for EVERY slash command
 

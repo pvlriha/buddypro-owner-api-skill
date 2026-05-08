@@ -18,9 +18,9 @@ If you just loaded this skill and need to be useful in the next 30 seconds, here
 
 4. **STEP 0 of EVERY invocation: auto-update check.** Pin local `VERSION` against `https://raw.githubusercontent.com/pvlriha/buddypro-owner-api-skill/main/VERSION`. If newer remote → silently auto-update via `https://docs.buddypro.ai/skill`. Cached 4h via `.last_version_check`. Pin via `.pinned_version` if user opts out.
 
-5. **STEP 1: state is in `instances.json`** (multi-instance from v0.11.0). `~/.claude/skills/buddypro-owner-api/instances.json` is the canonical store. Each user can have 1 OR MANY BuddyPro instances; each entry has its own `bapi_` key, name, topic, slug. Legacy v0.10.x `state.env` is auto-migrated. Resolve active instance by: slug-specific slash command → default_instance → name match in user message → ask if ambiguous.
+5. **STEP 1: state is in `instances.json`** (multi-instance store). `~/.claude/skills/buddypro-owner-api/instances.json` is the canonical store. Each user can have 1 OR MANY BuddyPro instances; each entry has its own `bapi_` key, name, topic, slug (internal ID — NOT a slash command). Legacy v0.10.x `state.env` is auto-migrated. Resolve active instance by: name match in user's message → `default_instance` from store → ask if ambiguous.
 
-6. **First-time onboarding is 5 steps.** Privacy warning (out loud, official docs verbatim) → Step 0 (test profile `/test:apitest` in Telegram) → Step 1 (generate `bapi_` key) → Step 2 (verify BEFORE saving) → Step 3 (capture NAME + TOPIC, atomic write to instances.json via Python helper). Adding another instance = same flow, skip privacy warning + mental model briefing.
+6. **First-time onboarding is 5 steps.** Privacy warning (out loud, official docs verbatim) → Step 0 (test profile `/test:apitest` in Telegram) → Step 1 (generate `bapi_` key) → Step 2 (verify BEFORE saving) → Step 3 (capture NAME + TOPIC, atomic write to instances.json via Python helper). Adding another instance = user says „přidej další instanci" / „add another instance" in plain language → same flow, skip privacy warning + mental model briefing. **No `/buddypro-add-instance` or `/buddypro-list-instances` slash commands** — multi-instance management is purely conversational.
 
 7. **EVERY deep-research call MUST include the anti-clarification directive in `x_buddy_systemPrompt` mode `add`.** Without it, bot defaults to clarifying questions instead of answering with frameworks. Full directive text in `references/deep-research-architecture.md` near the top. Stack with topology + role directives via concatenation.
 
@@ -229,16 +229,13 @@ When user invokes the skill, decide WHICH instance to use:
 # Pseudo-logic — runs each invocation after onboarding check passed
 ACTIVE_SLUG=""
 
-# 1) If invoked via slug-specific slash command (/online-strateg, /buddypro-ai, etc.) → use that slug
-#    The slash command file's body says "set the active instance to slug `xyz`" — agent reads it.
+# 1) If user message mentions an instance NAME → match (case-insensitive substring) against
+#    instances[*].name. If exactly one match → use it. If multiple matches → ask user.
+# 2) Otherwise → use default_instance from instances.json.
+# 3) Tell user briefly which instance is active (e.g., „Použiju tvou „[name]" instanci.")
+#    so they know — especially important when 2+ instances exist.
 
-# 2) If invoked via /buddypro-api → use default_instance
-[ -z "$ACTIVE_SLUG" ] && ACTIVE_SLUG="$DEFAULT_SLUG"
-
-# 3) If user message mentions an instance NAME → match (case-insensitive substring) against instances[*].name
-#    If exactly one match → use it. If multiple matches → ask user.
-
-# 4) Load that instance's data
+# Load that instance's data
 python3 - <<PY
 import json, os, sys
 data = json.load(open(os.environ['HOME'] + '/.claude/skills/buddypro-owner-api/instances.json'))
@@ -246,7 +243,6 @@ slug = "$ACTIVE_SLUG"
 if slug not in data['instances']:
     print(f"ERROR: slug '{slug}' not in instances.json", file=sys.stderr); sys.exit(1)
 inst = data['instances'][slug]
-# Print export lines for shell to eval
 print(f"export BUDDYPRO_API_KEY={inst['api_key']!r}")
 print(f"export BUDDYPRO_INSTANCE_NAME={inst['name']!r}")
 print(f"export BUDDYPRO_INSTANCE_TOPIC={inst['topic']!r}")
@@ -254,18 +250,11 @@ print(f"export BUDDYPRO_ACTIVE_SLUG={slug!r}")
 PY
 ```
 
-🔴 **Privacy warning is ONE-SHOT per user, not per instance.** Once `instances.json` has any entry with `privacy_warning_acknowledged=true`, never show the warning again — even when adding another instance. Repeating it = annoying noise.
+🔴 **Privacy warning is ONE-SHOT per user, not per instance.** Once `instances.json` has any entry with `privacy_warning_acknowledged=true`, never show the warning again — even when adding another instance.
 
 🔴 **State files are preserved across skill upgrades.** INSTALL.md `cp` overwrites SKILL.md, references/, command/, VERSION, CHANGELOG.md. It does NOT touch `instances.json`, `.onboarded`, `state.env` (legacy), `.last_version_check`, `.pinned_version`. INSTALL.md post-install hook re-injects instance names into the new SKILL.md description so auto-trigger keeps firing on user-specific names.
 
-**Reset & remove-instance procedures** are in `references/getting-started.md` § Reset modes. Quick summary:
-
-| User intent | What gets removed |
-|---|---|
-| „reset onboarding" with 1 instance | Full reset (instances.json, .onboarded, that instance's slash command, .last_version_check) |
-| „reset onboarding" with 2+ instances | Ask which one to remove; or „reset all" for full wipe |
-| „remove instance [name]" | Just that one entry from instances.json + its slash command file |
-| „reset all instances" | Full wipe (all instances.json entries, all `is_ours()` slash commands, all markers) |
+**Multi-instance management is conversational** (no slash commands). User says things like *„přidej další instanci"* / *„add another instance"* / *„přepni na X"* / *„seznam mých instancí"* / *„odeber X"* / *„resetuj"*. The skill recognizes the intent from natural language and runs the appropriate flow. Full reference in `references/getting-started.md` § "Conversational management".
 
 ## 🔗 Google Drive integration check (high-value bonus)
 
@@ -411,9 +400,11 @@ The skill's API key controls a **real production BuddyPro instance with real use
 
 If you encounter a slash command not in the risk matrix, treat it as 🟠 by default and ask the user what it does before executing.
 
-*Version: 0.11.0 — see VERSION file*
+*Version: 0.11.1 — see VERSION file*
 
-*v0.11.0 multi-instance support + comprehensive audit fix release (2026-05-08): MAJOR storage schema change. Single source of truth migrated from `state.env` → `instances.json` (auto-migrated on first invocation, no user action needed). User can now have N BuddyPro instances; each entry in instances.json has own bapi_ key + name + topic + slug. New slash commands `/buddypro-add-instance` + `/buddypro-list-instances`. Per-instance slash commands auto-created with collision detection (won't overwrite /init etc). Active-instance resolution at every invocation: slug-specific slash command → default → name match in user message → ask if ambiguous. Fixed all 18 audit findings: K1 description leakage (no more hardcoded „Online Strateg" etc in distributable description), K2 heredoc placeholder bug (Python helper with env-var passing eliminates shell-injection from instance names with apostrophes/diacritics/ampersands), K3 missing INSTANCE_NAME export + migration logic, K4 `/buddypro-api-update` explicit bash, K5 unified „5-step onboarding" naming. Major: M2 slash command collision detection (`is_ours()` predicate), M3 unicodedata.normalize for slug generation, M4 agent-side question instead of bash `read -p`, M5 reset cleanup also wipes per-instance slash commands + injection markers, M6 python3 fallback handling (manifest declares it, INSTALL.md post-hook prints SKIPPED state, SKILL.md self-check explicit MISSING_PYTHON3), M7 post-install hook output documented. Minor: N1 sub-skill footers v0.11.0, N2 Quick ref Drive entry, N3 mental model deduplicated (single source = getting-started.md, SKILL.md just summarizes), N4 verify-before-save in Step 2, N5 CHANGELOG.md entry, N6 naming consistency.*
+*v0.11.1 simplification — multi-instance management = pure conversational (2026-05-08): REMOVED `/buddypro-add-instance` and `/buddypro-list-instances` slash commands. REMOVED per-instance `/[slug]` slash commands. Multi-instance store (instances.json) stays — it's the right interna, just shouldn't be exposed via slash command UI. User now manages instances by saying things in plain language: „přidej další instanci" / „add another instance" / „seznam mých instancí" / „přepni na X" / „odeber X" / „resetuj". The skill recognizes intent from natural language and runs the appropriate flow. INSTALL.md now also cleans up legacy per-instance slash commands from prior v0.11.0 installs. Distributable SKILL.md description has zero hardcoded user-specific instance names (was already fixed in v0.11.0 but reaffirmed here). Local description injection (auto-trigger on user's instance names) still works — that's local-only, never distributed.*
+
+*v0.11.0 multi-instance support + comprehensive audit fix release (2026-05-08): MAJOR storage schema change. Single source of truth migrated from `state.env` → `instances.json` (auto-migrated on first invocation, no user action needed). User can have N BuddyPro instances; each entry has own bapi_ key + name + topic + slug. Fixed all 18 audit findings (K1-K5 critical, M1-M7 major, N1-N6 minor) — see CHANGELOG.md v0.11.0 for full list.*
 
 *v0.10.0 sub-skill split + instance alias auto-trigger + fresh-agent TL;DR + force-update slash command (2026-05-08): MAJOR refactoring release. Sub-skills: `deep-research-architecture.md` (1465 → 779 lines, entry point) + 3 new sub-skills `deep-research-topologies.md` (216 lines, 8 question patterns) + `deep-research-scenarios.md` (258 lines, 7 scenario adaptations) + `deep-research-blueprints.md` (317 lines, 8-phase pipeline + implementation code skeleton). Instance alias auto-trigger: onboarding now asks 2 explicit questions (instance NAME + topic), saves both to state.env (BUDDYPRO_INSTANCE_NAME + BUDDYPRO_INSTANCE_TOPIC), injects user's instance name into local SKILL.md description, creates per-instance slash command alias, persists alias list to `.instance-aliases` file. INSTALL.md post-install hook re-applies alias injection. Fresh-agent 30-second TL;DR added to top of SKILL.md. New `/buddypro-api-update` slash command. Quick reference table now routes to the right sub-skill.*
 

@@ -66,8 +66,6 @@ files=(
   "skill/references/docs-references.md:skill/references/docs-references.md"
   "command/buddypro-api.md:command/buddypro-api.md"
   "command/buddypro-api-update.md:command/buddypro-api-update.md"
-  "command/buddypro-add-instance.md:command/buddypro-add-instance.md"
-  "command/buddypro-list-instances.md:command/buddypro-list-instances.md"
 )
 
 for entry in "${files[@]}"; do

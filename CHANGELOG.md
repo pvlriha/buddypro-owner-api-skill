@@ -2,6 +2,36 @@
 
 All notable changes documented per release. Format: human-readable, ordered newest first. Same content as the footer of `skill/SKILL.md`, but in a standalone file so update notifications can fetch only the relevant entry without parsing SKILL.md.
 
+## v0.11.1 — 2026-05-08
+
+**Simplification: multi-instance management is now pure conversational. REMOVED slash command UI clutter.**
+
+- **REMOVED** `command/buddypro-add-instance.md` slash command
+- **REMOVED** `command/buddypro-list-instances.md` slash command
+- **REMOVED** per-instance `/[slug].md` slash command auto-creation in onboarding Step 3
+- **REMOVED** all references to those slash commands across SKILL.md, getting-started.md, command/buddypro-api.md, command/buddypro-api-update.md, INSTALL.md, manifest.json
+- **NEW** `INSTALL.md` orphan cleanup — removes deprecated slash commands from prior v0.10.x/v0.11.0 installs (per-instance `[slug].md` files starting with „# Alias for /buddypro-api", plus `buddypro-add-instance.md`, `buddypro-list-instances.md`)
+
+The reasoning: multi-instance store (`instances.json`) stays — it's the right internal representation. But exposing it as separate slash commands clutters the UX. Users manage instances in plain language now:
+
+| User says | What happens |
+|---|---|
+| „přidej další instanci" / „add another instance" | Skill runs onboarding STEPS 0→3 again, appends to instances.json |
+| „seznam mých instancí" / „list my instances" | Skill reads instances.json, pretty-prints |
+| „přepni na X" / „switch to X" | Skill sets active instance for THIS conversation |
+| „nastav X jako default" | Skill updates `default_instance` in instances.json |
+| „odeber X" / „remove X" | Skill confirms then deletes from instances.json |
+| „resetuj BuddyPro" / „start over" | Skill confirms then full-resets everything |
+
+Active-instance resolution at every invocation:
+1. User mentioned a specific instance name in message → use that one
+2. Otherwise use `default_instance` from instances.json
+3. If multiple matches → ask which one
+
+Local SKILL.md description injection still works (auto-trigger fires on user's instance names mentioned in plain text). That's local-only, never distributed via the repo SKILL.md.
+
+The 2 remaining slash commands are: `/buddypro-api` (primary entry) + `/buddypro-api-update` (force-update bypass cache). Nothing else.
+
 ## v0.11.0 — 2026-05-08
 
 **Multi-instance support + comprehensive audit fix release. BREAKING storage schema (auto-migrated from v0.10.x).**

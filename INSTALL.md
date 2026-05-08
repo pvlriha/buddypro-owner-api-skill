@@ -40,8 +40,6 @@ files=(
   "skill/references/docs-references.md:skill/references/docs-references.md"
   "command/buddypro-api.md:command/buddypro-api.md"
   "command/buddypro-api-update.md:command/buddypro-api-update.md"
-  "command/buddypro-add-instance.md:command/buddypro-add-instance.md"
-  "command/buddypro-list-instances.md:command/buddypro-list-instances.md"
 )
 
 for entry in "${files[@]}"; do
@@ -61,6 +59,29 @@ cp "$TMP/CHANGELOG.md" "$DEST_SKILL/CHANGELOG.md"
 cp "$TMP/skill/SKILL.md" "$DEST_SKILL/SKILL.md"
 cp "$TMP/skill/references/"*.md "$DEST_SKILL/references/"
 cp "$TMP/command/"*.md "$DEST_CMD/"
+
+# Orphan cleanup: remove deprecated slash commands from v0.10.x/v0.11.0
+# (per-instance /[slug].md files + buddypro-add-instance + buddypro-list-instances).
+# Multi-instance is conversational from v0.11.1 onwards.
+rm -f "$DEST_CMD/buddypro-add-instance.md" "$DEST_CMD/buddypro-list-instances.md"
+if command -v python3 >/dev/null 2>&1; then
+    python3 - <<'PY'
+import os, re
+from pathlib import Path
+cmd_dir = Path(os.environ['HOME']) / '.claude/commands'
+for f in cmd_dir.glob("*.md"):
+    try:
+        # Old per-instance slash commands started with "# Alias for /buddypro-api — instance:"
+        if f.name in ('buddypro-api.md', 'buddypro-api-update.md'):
+            continue
+        head = f.read_text(encoding='utf-8', errors='ignore')[:80]
+        if head.startswith("# Alias for /buddypro-api"):
+            f.unlink()
+            print(f"REMOVED_DEPRECATED_SLASH_COMMAND={f.name}")
+    except Exception:
+        pass
+PY
+fi
 
 # Sanity check — detect placeholder/stub references (under 500 bytes)
 STUB_COUNT=$(find "$DEST_SKILL/references" -name "*.md" -size -500c 2>/dev/null | wc -l | tr -d ' ')
